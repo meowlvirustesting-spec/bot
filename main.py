@@ -347,7 +347,12 @@ async def on_message(message):
               f"{message.author.mention} You got the code correct!"
           )
 
-  await bot.process_commands(message)
+  # Only process commands if the message actually starts with the command prefix
+  if message.content.startswith(bot.command_prefix):
+    try:
+      await bot.process_commands(message)
+    except Exception as e:
+      print(f"Error processing command: {e}")
 
 
 # --- 9. RUN BOT ---
