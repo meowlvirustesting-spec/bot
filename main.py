@@ -1,5 +1,6 @@
 import asyncio
 import os
+import random
 import re
 import threading
 from flask import Flask
@@ -9,41 +10,27 @@ from discord.ext import commands
 # --- CONFIGURATION ---
 ALLOWED_ROLE_NAME = "Code Manager"  # Role allowed to create codes
 
-# Target channel IDs across your servers
-TARGET_CHANNEL_IDS = [
-    1537084827042324560,
-    1538648727177265232,
+# Custom riddle bank: (Question, Answer)
+RIDDLE_BANK = [
+    ("What month did the first fuse machine release?", "AUGUST"),
+    ("What is the rarest DLC brainrot?", "POLAROIDINI"),
+    ("What was Cerberus's old name?", "HELLHOUND"),
+    ("What is the unused mutation called?", "DISCO"),
+    ("What is Sammy's favorite color?", "BLUE"),
+    ("What is bradar's favorite brainrot?", "SPINNYHAMMY"),
+    ("What is Toothpik's worst missed log?", "CELESTIALPEGASUS"),
+    ("What was the most recent brainrot added to the game?", "LAFUSEMACHINE"),
+    ("The first limited quantity brainrot was called?", "LAEXTINCTGRANDE"),
 ]
+
+# Track last used riddle to avoid repeats
+last_riddle = None
 
 # Common word list to match against when no spaces are provided
 COMMON_WORDS = {
-    "banana",
-    "good",
-    "apple",
-    "super",
-    "cool",
-    "fire",
-    "code",
-    "epic",
-    "legend",
-    "master",
-    "pro",
-    "ultra",
-    "mega",
-    "hyper",
-    "shadow",
-    "cyber",
-    "gamer",
-    "hero",
-    "star",
-    "dragon",
-    "viper",
-    "titan",
-    "ninja",
-    "boss",
-    "king",
-    "queen",
-    "lord",
+    "banana", "good", "apple", "super", "cool", "fire", "code", "epic", "legend",
+    "master", "pro", "ultra", "mega", "hyper", "shadow", "cyber", "gamer", "hero",
+    "star", "dragon", "viper", "titan", "ninja", "boss", "king", "queen", "lord"
 }
 
 # --- 1. KEEP-ALIVE WEB SERVER ---
@@ -73,7 +60,7 @@ intents.members = True  # Required to grant roles to users
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Active secret codes per channel:
+# Active secret codes/riddles per channel:
 # {channel_id: {"code": "secret code", "ready": False, "role_id": Optional[int]}}
 active_codes = {}
 
@@ -122,6 +109,7 @@ async def process_code_creation(
     target_channel: discord.TextChannel,
     clean_code: str,
     sections: list[str],
+    creator: discord.User | discord.Member,
     reward_role: discord.Role | None = None,
 ):
   active_codes[target_channel.id] = {
@@ -132,19 +120,24 @@ async def process_code_creation(
 
   embed = discord.Embed(
       title="Creating Code...",
-      description="*Generating Code...*",
+      description=f"**Created by:** {creator.mention}\n\n*Generating Code...*",
       color=discord.Color.blue(),
   )
+  embed.set_thumbnail(url=creator.display_avatar.url)
   message = await target_channel.send(embed=embed)
 
   displayed_text = ""
 
   async with target_channel.typing():
     for section in sections:
-      await asyncio.sleep(1.0)
+      await asyncio.sleep(2.5)
       displayed_text += section + " "
 
-      embed.description = f"**USE CODE:** {displayed_text.strip()}\n\n*Type the full code in chat to solve!*"
+      embed.description = (
+          f"**Created by:** {creator.mention}\n\n"
+          f"**USE CODE:** {displayed_text.strip()}\n\n"
+          f"*Type the full code in chat to solve!*"
+      )
       await message.edit(embed=embed)
 
   active_codes[target_channel.id]["ready"] = True
@@ -152,38 +145,103 @@ async def process_code_creation(
   embed.title = "Role Code Created!" if reward_role else "Code Created!"
   reward_text = f"\n**Reward:** {reward_role.mention}" if reward_role else ""
   embed.description = (
-      f"**USE CODE:** {clean_code}{reward_text}\n\nType the full code in chat"
-      " to claim!"
+      f"**Created by:** {creator.mention}\n\n"
+      f"**USE CODE:** {clean_code}{reward_text}\n\n"
+      f"Type the full code in chat to claim!"
   )
   embed.color = discord.Color.green()
   await message.edit(embed=embed)
 
 
-# --- 5. STANDARD CREATECODE COMMAND ---
+# --- 5. HELPER TASK TO REVEAL RIDDLE NUMBER DIGIT-BY-DIGIT ---
+async def process_riddle_creation(
+    target_channel: discord.TextChannel,
+    question: str,
+    base_answer: str,
+    random_num: int,
+    creator: discord.User | discord.Member,
+):
+  full_code = f"{base_answer}{random_num}"
+  num_str = str(random_num)
+
+  active_codes[target_channel.id] = {
+      "code": full_code.lower(),
+      "ready": False,
+      "role_id": None,
+  }
+
+  embed = discord.Embed(
+      title="🧩 Riddle Challenge!",
+      description=(
+          f"**Created by:** {creator.mention}\n\n"
+          f"**Question:** {question}\n\n"
+          f"**Code Number:** `....`"
+      ),
+      color=discord.Color.gold(),
+  )
+  embed.set_thumbnail(url=creator.display_avatar.url)
+  message = await target_channel.send(embed=embed)
+
+  revealed_digits = ""
+
+  async with target_channel.typing():
+    for digit in num_str:
+      await asyncio.sleep(2.5)
+      revealed_digits += digit
+      placeholder = revealed_digits.ljust(4, ".")
+
+      embed.description = (
+          f"**Created by:** {creator.mention}\n\n"
+          f"**Question:** {question}\n\n"
+          f"**Code Number:** `{placeholder}`\n\n"
+          f"*Revealing digits...*"
+      )
+      await message.edit(embed=embed)
+
+  active_codes[target_channel.id]["ready"] = True
+
+  embed.description = (
+      f"**Created by:** {creator.mention}\n\n"
+      f"**Question:** {question}\n\n"
+      f"**Code Number:** `{num_str}`\n\n"
+      f"*Combine the riddle answer + the number (e.g. ANSWER{num_str}) and type it in chat to solve!*"
+  )
+  await message.edit(embed=embed)
+
+
+# --- 6. STANDARD CREATECODE COMMAND ---
 @bot.command()
 @commands.has_role(ALLOWED_ROLE_NAME)
-async def createcode(ctx, *, required_code: str):
+async def createcode(ctx, *, args: str = ""):
   try:
     await ctx.message.delete()
-  except discord.Forbidden:
-    print("Bot missing 'Manage Messages' permission to delete the trigger.")
+  except (discord.Forbidden, discord.NotFound):
+    pass
 
-  clean_code = required_code.strip()
+  if not args.strip():
+    await ctx.send(
+        "❌ **Usage:** `!createcode [#channel] bananagood123`", delete_after=5
+    )
+    return
+
+  target_channel = ctx.channel
+  clean_code = args.strip()
+
+  if ctx.message.channel_mentions:
+    target_channel = ctx.message.channel_mentions[0]
+    # Completely remove channel mention pattern <#123456789>
+    clean_code = re.sub(r"<#\d+>", "", clean_code).strip()
+
+  if not clean_code:
+    await ctx.send(
+        "❌ **Usage:** `!createcode [#channel] bananagood123`", delete_after=5
+    )
+    return
+
   sections = split_phrase(clean_code)
-
-  tasks = []
-  for channel_id in TARGET_CHANNEL_IDS:
-    try:
-      target_channel = await bot.fetch_channel(channel_id)
-      if isinstance(target_channel, discord.TextChannel):
-        tasks.append(
-            process_code_creation(target_channel, clean_code, sections)
-        )
-    except Exception as e:
-      print(f"Could not reach channel {channel_id}: {e}")
-
-  if tasks:
-    await asyncio.gather(*tasks)
+  await process_code_creation(
+      target_channel, clean_code, sections, ctx.author
+  )
 
 
 @createcode.error
@@ -195,45 +253,46 @@ async def createcode_error(ctx, error):
 
   if isinstance(error, commands.MissingRole):
     await ctx.send(
-        f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to"
-        " use this command!",
-        delete_after=5,
-    )
-  elif isinstance(error, commands.MissingRequiredArgument):
-    await ctx.send(
-        "❌ **Usage:** `!createcode bananagood123`\nPlease provide a phrase or"
-        " code after the command!",
+        f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!",
         delete_after=5,
     )
 
 
-# --- 6. ROLE CODE COMMAND (ONE-TIME REDEEM FOR A ROLE) ---
+# --- 7. ROLE CODE COMMAND ---
 @bot.command()
 @commands.has_role(ALLOWED_ROLE_NAME)
-async def createrolecode(ctx, role: discord.Role, *, required_code: str):
+async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
   try:
     await ctx.message.delete()
-  except discord.Forbidden:
-    print("Bot missing 'Manage Messages' permission to delete the trigger.")
+  except (discord.Forbidden, discord.NotFound):
+    pass
 
-  clean_code = required_code.strip()
+  if not args.strip():
+    await ctx.send(
+        "❌ **Usage:** `!createrolecode @Role [#channel] bananagood123`",
+        delete_after=5,
+    )
+    return
+
+  target_channel = ctx.channel
+  clean_code = args.strip()
+
+  if ctx.message.channel_mentions:
+    target_channel = ctx.message.channel_mentions[0]
+    # Completely remove channel mention pattern <#123456789>
+    clean_code = re.sub(r"<#\d+>", "", clean_code).strip()
+
+  if not clean_code:
+    await ctx.send(
+        "❌ **Usage:** `!createrolecode @Role [#channel] bananagood123`",
+        delete_after=5,
+    )
+    return
+
   sections = split_phrase(clean_code)
-
-  tasks = []
-  for channel_id in TARGET_CHANNEL_IDS:
-    try:
-      target_channel = await bot.fetch_channel(channel_id)
-      if isinstance(target_channel, discord.TextChannel):
-        tasks.append(
-            process_code_creation(
-                target_channel, clean_code, sections, reward_role=role
-            )
-        )
-    except Exception as e:
-      print(f"Could not reach channel {channel_id}: {e}")
-
-  if tasks:
-    await asyncio.gather(*tasks)
+  await process_code_creation(
+      target_channel, clean_code, sections, ctx.author, reward_role=role
+  )
 
 
 @createrolecode.error
@@ -245,25 +304,49 @@ async def createrolecode_error(ctx, error):
 
   if isinstance(error, commands.MissingRole):
     await ctx.send(
-        f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to"
-        " use this command!",
-        delete_after=5,
-    )
-  elif isinstance(error, commands.BadArgument):
-    await ctx.send(
-        "❌ Could not find that role! Please mention the role or use its"
-        " ID.\n**Usage:** `!createrolecode @Role bananagood123`",
-        delete_after=5,
-    )
-  elif isinstance(error, commands.MissingRequiredArgument):
-    await ctx.send(
-        "❌ **Usage:** `!createrolecode @Role bananagood123`\nPlease mention a"
-        " role and provide a code!",
+        f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!",
         delete_after=5,
     )
 
 
-# --- 7. COMMANDS LIST COMMAND ---
+# --- 8. CREATE RIDDLE COMMAND ---
+@bot.command()
+@commands.has_role(ALLOWED_ROLE_NAME)
+async def createriddle(ctx, channel: discord.TextChannel | None = None):
+  global last_riddle
+
+  try:
+    await ctx.message.delete()
+  except (discord.Forbidden, discord.NotFound):
+    pass
+
+  target_channel = channel or ctx.channel
+
+  available_riddles = [r for r in RIDDLE_BANK if r != last_riddle]
+  if not available_riddles:
+    available_riddles = RIDDLE_BANK
+
+  selected_riddle = random.choice(available_riddles)
+  last_riddle = selected_riddle
+
+  question, answer = selected_riddle
+  random_num = random.randint(1000, 9999)
+
+  await process_riddle_creation(
+      target_channel, question, answer, random_num, ctx.author
+  )
+
+
+@createriddle.error
+async def createriddle_error(ctx, error):
+  if isinstance(error, commands.MissingRole):
+    await ctx.send(
+        f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!",
+        delete_after=5,
+    )
+
+
+# --- 9. COMMANDS LIST COMMAND ---
 @bot.command()
 @commands.has_role(ALLOWED_ROLE_NAME)
 async def cmds(ctx):
@@ -274,21 +357,20 @@ async def cmds(ctx):
   )
 
   embed.add_field(
-      name="`!createcode <code>`",
-      value=(
-          "Creates a standard guess code and animates it in all target"
-          " channels.\n**Example:** `!createcode bananagood123`"
-      ),
+      name="`!createcode [#channel] <code>`",
+      value="Creates a standard code embed in a channel (defaults to current channel if unmentioned).\n**Examples:**\n`!createcode bananagood123`\n`!createcode #codes bananagood123`",
       inline=False,
   )
 
   embed.add_field(
-      name="`!createrolecode <@role> <code>`",
-      value=(
-          "Creates a one-time redeem code that grants a role to the first"
-          " person who guesses it correctly.\n**Example:** `!createrolecode"
-          " @VIP bananagood123`"
-      ),
+      name="`!createrolecode <@role> [#channel] <code>`",
+      value="Creates a role reward code in a channel.\n**Examples:**\n`!createrolecode @VIP bananagood123`\n`!createrolecode @VIP #codes bananagood123`",
+      inline=False,
+  )
+
+  embed.add_field(
+      name="`!createriddle [#channel]`",
+      value="Generates a riddle challenge in a specific channel.\n**Examples:**\n`!createriddle`\n`!createriddle #riddles`",
       inline=False,
   )
 
@@ -299,12 +381,11 @@ async def cmds(ctx):
 async def cmds_error(ctx, error):
   if isinstance(error, commands.MissingRole):
     await ctx.send(
-        f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to"
-        " use this command!"
+        f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!"
     )
 
 
-# --- 8. CHAT LISTENER FOR PHRASE VERIFICATION & ROLE GRANT ---
+# --- 10. CHAT LISTENER FOR PHRASE VERIFICATION & ROLE GRANT ---
 @bot.event
 async def on_message(message):
   if message.author == bot.user:
@@ -321,7 +402,6 @@ async def on_message(message):
       if message.content.strip().lower() == target_code:
         role_id = code_data.get("role_id")
 
-        # Deactivate code immediately so it can only be claimed once
         del active_codes[channel_id]
 
         if role_id and isinstance(message.author, discord.Member):
@@ -330,32 +410,25 @@ async def on_message(message):
             try:
               await message.author.add_roles(role)
               await message.channel.send(
-                  f"🎉 {message.author.mention} was the first to solve the code"
-                  f" and won the **{role.name}** role!"
+                  f"🎉 {message.author.mention} was the first to solve the riddle/code and won the **{role.name}** role!"
               )
             except discord.Forbidden:
               await message.channel.send(
-                  f"{message.author.mention} You got the code correct, but I"
-                  " don't have permission to assign that role!"
+                  f"{message.author.mention} You got the answer correct, but I don't have permission to assign that role!"
               )
           else:
             await message.channel.send(
-                f"{message.author.mention} You got the code correct!"
+                f"{message.author.mention} You got the answer correct!"
             )
         else:
           await message.channel.send(
-              f"{message.author.mention} You got the code correct!"
+              f"{message.author.mention} You got the answer correct!"
           )
 
-  # Only process commands if the message actually starts with the command prefix
-  if message.content.startswith(bot.command_prefix):
-    try:
-      await bot.process_commands(message)
-    except Exception as e:
-      print(f"Error processing command: {e}")
+  await bot.process_commands(message)
 
 
-# --- 9. RUN BOT ---
+# --- 11. RUN BOT ---
 if __name__ == "__main__":
   keep_alive()
   token = os.getenv("DISCORD_TOKEN")
