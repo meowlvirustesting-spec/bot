@@ -153,60 +153,84 @@ async def process_code_creation(
   await message.edit(embed=embed)
 
 
-# --- 5. HELPER TASK TO REVEAL RIDDLE NUMBER DIGIT-BY-DIGIT ---
+# --- 5. HELPER TASK FOR RIDDLE CREATION (WITH OR WITHOUT NUMBERS) ---
 async def process_riddle_creation(
     target_channel: discord.TextChannel,
     question: str,
     base_answer: str,
-    random_num: int,
     creator: discord.User | discord.Member,
 ):
-  full_code = f"{base_answer}{random_num}"
-  num_str = str(random_num)
+  # 50% chance to include a 4-digit number
+  use_numbers = random.choice([True, False])
 
-  active_codes[target_channel.id] = {
-      "code": full_code.lower(),
-      "ready": False,
-      "role_id": None,
-  }
+  if use_numbers:
+    random_num = random.randint(1000, 9999)
+    full_code = f"{base_answer}{random_num}"
+    num_str = str(random_num)
 
-  embed = discord.Embed(
-      title="🧩 Riddle Challenge!",
-      description=(
-          f"**Created by:** {creator.mention}\n\n"
-          f"**Question:** {question}\n\n"
-          f"**Code Number:** `....`"
-      ),
-      color=discord.Color.gold(),
-  )
-  embed.set_thumbnail(url=creator.display_avatar.url)
-  message = await target_channel.send(embed=embed)
+    active_codes[target_channel.id] = {
+        "code": full_code.lower(),
+        "ready": False,
+        "role_id": None,
+    }
 
-  revealed_digits = ""
+    embed = discord.Embed(
+        title="🧩 Riddle Challenge!",
+        description=(
+            f"**Created by:** {creator.mention}\n\n"
+            f"**Question:** {question}\n\n"
+            f"**Code Number:** `....`"
+        ),
+        color=discord.Color.gold(),
+    )
+    embed.set_thumbnail(url=creator.display_avatar.url)
+    message = await target_channel.send(embed=embed)
 
-  async with target_channel.typing():
-    for digit in num_str:
-      await asyncio.sleep(2.5)
-      revealed_digits += digit
-      placeholder = revealed_digits.ljust(4, ".")
+    revealed_digits = ""
 
-      embed.description = (
-          f"**Created by:** {creator.mention}\n\n"
-          f"**Question:** {question}\n\n"
-          f"**Code Number:** `{placeholder}`\n\n"
-          f"*Revealing digits...*"
-      )
-      await message.edit(embed=embed)
+    async with target_channel.typing():
+      for digit in num_str:
+        await asyncio.sleep(2.5)
+        revealed_digits += digit
+        placeholder = revealed_digits.ljust(4, ".")
 
-  active_codes[target_channel.id]["ready"] = True
+        embed.description = (
+            f"**Created by:** {creator.mention}\n\n"
+            f"**Question:** {question}\n\n"
+            f"**Code Number:** `{placeholder}`\n\n"
+            f"*Revealing digits...*"
+        )
+        await message.edit(embed=embed)
 
-  embed.description = (
-      f"**Created by:** {creator.mention}\n\n"
-      f"**Question:** {question}\n\n"
-      f"**Code Number:** `{num_str}`\n\n"
-      f"*Combine the riddle answer + the number (e.g. ANSWER{num_str}) and type it in chat to solve!*"
-  )
-  await message.edit(embed=embed)
+    active_codes[target_channel.id]["ready"] = True
+
+    embed.description = (
+        f"**Created by:** {creator.mention}\n\n"
+        f"**Question:** {question}\n\n"
+        f"**Code Number:** `{num_str}`\n\n"
+        f"*Combine the riddle answer + the number (e.g. ANSWER{num_str}) and type it in chat to solve!*"
+    )
+    await message.edit(embed=embed)
+
+  else:
+    # Word-only riddle mode
+    active_codes[target_channel.id] = {
+        "code": base_answer.lower(),
+        "ready": True,
+        "role_id": None,
+    }
+
+    embed = discord.Embed(
+        title="🧩 Riddle Challenge!",
+        description=(
+            f"**Created by:** {creator.mention}\n\n"
+            f"**Question:** {question}\n\n"
+            f"*Type the answer to the riddle in chat to solve!*"
+        ),
+        color=discord.Color.gold(),
+    )
+    embed.set_thumbnail(url=creator.display_avatar.url)
+    await target_channel.send(embed=embed)
 
 
 # --- 6. STANDARD CREATECODE COMMAND ---
@@ -229,7 +253,6 @@ async def createcode(ctx, *, args: str = ""):
 
   if ctx.message.channel_mentions:
     target_channel = ctx.message.channel_mentions[0]
-    # Completely remove channel mention pattern <#123456789>
     clean_code = re.sub(r"<#\d+>", "", clean_code).strip()
 
   if not clean_code:
@@ -279,7 +302,6 @@ async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
 
   if ctx.message.channel_mentions:
     target_channel = ctx.message.channel_mentions[0]
-    # Completely remove channel mention pattern <#123456789>
     clean_code = re.sub(r"<#\d+>", "", clean_code).strip()
 
   if not clean_code:
@@ -330,11 +352,8 @@ async def createriddle(ctx, channel: discord.TextChannel | None = None):
   last_riddle = selected_riddle
 
   question, answer = selected_riddle
-  random_num = random.randint(1000, 9999)
 
-  await process_riddle_creation(
-      target_channel, question, answer, random_num, ctx.author
-  )
+  await process_riddle_creation(target_channel, question, answer, ctx.author)
 
 
 @createriddle.error
@@ -370,7 +389,7 @@ async def cmds(ctx):
 
   embed.add_field(
       name="`!createriddle [#channel]`",
-      value="Generates a riddle challenge in a specific channel.\n**Examples:**\n`!createriddle`\n`!createriddle #riddles`",
+      value="Generates a riddle challenge in a specific channel (50% chance for a number countdown, 50% chance for a pure word riddle).",
       inline=False,
   )
 
