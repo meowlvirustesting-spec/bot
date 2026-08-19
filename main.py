@@ -139,7 +139,7 @@ async def process_code_creation(target_channel: discord.TextChannel, clean_code:
     embed.color = discord.Color.green()
     await message.edit(embed=embed)
 
-# --- 5. HELPER TASK FOR RIDDLE CREATION (WITH DELAYED NUMBER REVEAL) ---
+# --- 5. HELPER TASK FOR RIDDLE CREATION ---
 async def process_riddle_creation(target_channel: discord.TextChannel, question: str, base_answer: str, creator: discord.User | discord.Member):
     # 50% chance to include a 4-digit number
     use_numbers = random.choice([True, False])
@@ -155,20 +155,19 @@ async def process_riddle_creation(target_channel: discord.TextChannel, question:
             "role_id": None
         }
 
-        # Step 1: Send the initial riddle WITHOUT the code number showing yet
+        # Step 1: Send the initial riddle cleanly without warnings
         embed = discord.Embed(
             title="🧩 Riddle Challenge!",
             description=(
                 f"**Created by:** {creator.mention}\n\n"
-                f"**Question:** {question}\n\n"
-                f"*Get ready! The code numbers will start revealing shortly...*"
+                f"**Question:** {question}"
             ),
             color=discord.Color.gold()
         )
         embed.set_thumbnail(url=creator.display_avatar.url)
         message = await target_channel.send(embed=embed)
 
-        # Step 2: Pause for 3 seconds after the riddle drops before starting number reveals
+        # Step 2: Pause quietly for 3 seconds before introducing the digits
         await asyncio.sleep(3)
 
         # Step 3: Reveal numbers digit by digit
@@ -198,7 +197,7 @@ async def process_riddle_creation(target_channel: discord.TextChannel, question:
         await message.edit(embed=embed)
 
     else:
-        # Word-only riddle mode (no numbers needed)
+        # Word-only riddle mode
         active_codes[target_channel.id] = {
             "code": base_answer.lower(),
             "ready": True,
