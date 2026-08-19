@@ -155,7 +155,7 @@ async def process_riddle_creation(target_channel: discord.TextChannel, question:
             "role_id": None
         }
 
-        # Step 1: Send the initial riddle cleanly without warnings
+        # Step 1: Send the initial riddle cleanly
         embed = discord.Embed(
             title="🧩 Riddle Challenge!",
             description=(
@@ -167,25 +167,10 @@ async def process_riddle_creation(target_channel: discord.TextChannel, question:
         embed.set_thumbnail(url=creator.display_avatar.url)
         message = await target_channel.send(embed=embed)
 
-        # Step 2: Pause quietly for 3 seconds before introducing the digits
+        # Step 2: Pause quietly for 3 seconds
         await asyncio.sleep(3)
 
-        # Step 3: Reveal numbers digit by digit
-        revealed_digits = ""
-        async with target_channel.typing():
-            for digit in num_str:
-                revealed_digits += digit
-                placeholder = revealed_digits.ljust(4, '.')
-
-                embed.description = (
-                    f"**Created by:** {creator.mention}\n\n"
-                    f"**Question:** {question}\n\n"
-                    f"**Code Number:** `{placeholder}`\n\n"
-                    f"*Revealing digits...*"
-                )
-                await message.edit(embed=embed)
-                await asyncio.sleep(2.5)
-
+        # Step 3: Directly append the number instantly
         active_codes[target_channel.id]["ready"] = True
 
         embed.description = (
@@ -343,7 +328,7 @@ async def cmds(ctx):
 
     embed.add_field(
         name="`!createriddle [#channel]`",
-        value="Generates a riddle challenge in a channel (50% chance for a delayed number countdown, 50% chance for pure word answer).",
+        value="Generates a riddle challenge in a channel (50% chance for delayed full number drop, 50% chance for pure word answer).",
         inline=False
     )
 
