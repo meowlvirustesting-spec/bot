@@ -19,7 +19,7 @@ RIDDLE_BANK = [
     ("What is Sammy's favorite color?", "BLUE"),
     ("What is bradar's favorite brainrot?", "SPINNYHAMMY"),
     ("What is Toothpik's worst missed log?", "CELESTIALPEGASUS"),
-    ("What was the most recent brainrot added to the game?", "LAFUSEMACHINE"),
+    ("What was the most recent brainrot added to the game?", "SAMMYNITRUCKINI"),
     ("The first limited quantity brainrot was called?", "LAEXTINCTGRANDE"),
 ]
 
