@@ -8,7 +8,7 @@ import discord
 from discord.ext import commands
 
 # --- CONFIGURATION ---
-ALLOWED_ROLE_NAME = "Code Manager" # Role allowed to create codes
+ALLOWED_ROLE_NAME = "Code Manager" # Role allowed to create codes and manage blacklist
 
 # Custom riddle bank: (Question, Answer)
 RIDDLE_BANK = [
@@ -25,6 +25,9 @@ RIDDLE_BANK = [
 
 # Track last used riddle to avoid repeats
 last_riddle = None
+
+# Set of blacklisted user IDs
+blacklisted_users = set()
 
 # Common word list to match against when no spaces are provided
 COMMON_WORDS = {
@@ -63,6 +66,13 @@ active_codes = {}
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}!")
+
+# --- Global Check to Block Blacklisted Users from Commands ---
+@bot.check
+async def check_blacklisted(ctx):
+    if ctx.author.id in blacklisted_users:
+        return False
+    return True
 
 # --- 3. HELPER FUNCTION TO SMART SPLIT WORDS & NUMBERS ---
 def split_phrase(text: str) -> list[str]:
@@ -141,7 +151,6 @@ async def process_code_creation(target_channel: discord.TextChannel, clean_code:
 
 # --- 5. HELPER TASK FOR RIDDLE CREATION ---
 async def process_riddle_creation(target_channel: discord.TextChannel, question: str, base_answer: str, creator: discord.User | discord.Member):
-    # 50% chance to include a 4-digit number
     use_numbers = random.choice([True, False])
 
     if use_numbers:
@@ -155,7 +164,6 @@ async def process_riddle_creation(target_channel: discord.TextChannel, question:
             "role_id": None
         }
 
-        # Step 1: Send the initial riddle cleanly
         embed = discord.Embed(
             title="🧩 Riddle Challenge!",
             description=(
@@ -167,10 +175,8 @@ async def process_riddle_creation(target_channel: discord.TextChannel, question:
         embed.set_thumbnail(url=creator.display_avatar.url)
         message = await target_channel.send(embed=embed)
 
-        # Step 2: Pause quietly for 3 seconds
         await asyncio.sleep(3)
 
-        # Step 3: Directly append the number instantly
         active_codes[target_channel.id]["ready"] = True
 
         embed.description = (
@@ -182,7 +188,6 @@ async def process_riddle_creation(target_channel: discord.TextChannel, question:
         await message.edit(embed=embed)
 
     else:
-        # Word-only riddle mode
         active_codes[target_channel.id] = {
             "code": base_answer.lower(),
             "ready": True,
@@ -304,7 +309,62 @@ async def createriddle_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send(f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!", delete_after=5)
 
-# --- 9. COMMANDS LIST COMMAND ---
+# --- 9. BLACKLIST COMMANDS ---
+@bot.command()
+@commands.has_role(ALLOWED_ROLE_NAME)
+async def blacklist(ctx, user: discord.User | discord.Member):
+    try:
+        await ctx.message.delete()
+    except (discord.Forbidden, discord.NotFound):
+        pass
+
+    if user.id in blacklisted_users:
+        await ctx.send(f"⚠️ {user.mention} is already blacklisted.", delete_after=5)
+        return
+
+    blacklisted_users.add(user.id)
+    await ctx.send(f"🚫 {user.mention} has been blacklisted from using the bot!")
+
+@blacklist.error
+async def blacklist_error(ctx, error):
+    try:
+        await ctx.message.delete()
+    except (discord.Forbidden, discord.NotFound):
+        pass
+
+    if isinstance(error, commands.MissingRole):
+        await ctx.send(f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!", delete_after=5)
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("❌ **Usage:** `!blacklist @User`", delete_after=5)
+
+@bot.command()
+@commands.has_role(ALLOWED_ROLE_NAME)
+async def unblacklist(ctx, user: discord.User | discord.Member):
+    try:
+        await ctx.message.delete()
+    except (discord.Forbidden, discord.NotFound):
+        pass
+
+    if user.id not in blacklisted_users:
+        await ctx.send(f"⚠️ {user.mention} is not blacklisted.", delete_after=5)
+        return
+
+    blacklisted_users.remove(user.id)
+    await ctx.send(f"✅ {user.mention} has been removed from the blacklist!")
+
+@unblacklist.error
+async def unblacklist_error(ctx, error):
+    try:
+        await ctx.message.delete()
+    except (discord.Forbidden, discord.NotFound):
+        pass
+
+    if isinstance(error, commands.MissingRole):
+        await ctx.send(f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!", delete_after=5)
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("❌ **Usage:** `!unblacklist @User`", delete_after=5)
+
+# --- 10. COMMANDS LIST COMMAND ---
 @bot.command()
 @commands.has_role(ALLOWED_ROLE_NAME)
 async def cmds(ctx):
@@ -316,7 +376,7 @@ async def cmds(ctx):
 
     embed.add_field(
         name="`!createcode [#channel] <code>`",
-        value="Creates a standard code embed in a channel (defaults to current channel if unmentioned).\n**Examples:**\n`!createcode bananagood123`\n`!createcode #codes bananagood123`",
+        value="Creates a standard code embed in a channel.\n**Examples:**\n`!createcode bananagood123`\n`!createcode #codes bananagood123`",
         inline=False
     )
 
@@ -328,7 +388,19 @@ async def cmds(ctx):
 
     embed.add_field(
         name="`!createriddle [#channel]`",
-        value="Generates a riddle challenge in a channel (50% chance for delayed full number drop, 50% chance for pure word answer).",
+        value="Generates a riddle challenge in a channel.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="`!blacklist <@user>`",
+        value="Blacklists a user from interacting with the bot or completing codes.",
+        inline=False
+    )
+
+    embed.add_field(
+        name="`!unblacklist <@user>`",
+        value="Removes a user from the blacklist.",
         inline=False
     )
 
@@ -339,10 +411,14 @@ async def cmds_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send(f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!")
 
-# --- 10. CHAT LISTENER FOR PHRASE VERIFICATION & ROLE GRANT ---
+# --- 11. CHAT LISTENER FOR PHRASE VERIFICATION & ROLE GRANT ---
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
+        return
+
+    # Ignore any messages from blacklisted users
+    if message.author.id in blacklisted_users:
         return
 
     channel_id = message.channel.id
@@ -377,7 +453,7 @@ async def on_message(message):
 
     await bot.process_commands(message)
 
-# --- 11. RUN BOT ---
+# --- 12. RUN BOT ---
 if __name__ == "__main__":
     keep_alive()
     token = os.getenv("DISCORD_TOKEN")
