@@ -8,19 +8,6 @@ from flask import Flask
 import discord
 from discord.ext import commands
 
-# --- NLTK DICTIONARY INITIALIZATION ---
-import nltk
-from nltk.corpus import words
-
-# Download words corpus if not already present locally
-try:
-    nltk.data.find('corpora/words')
-except LookupError:
-    nltk.download('words')
-
-# Load the full English dictionary and convert to a lowercase set
-COMMON_WORDS = set(word.lower() for word in words.words())
-
 # --- CONFIGURATION ---
 ALLOWED_ROLE_NAME = "Code Manager"
 
@@ -79,38 +66,22 @@ def is_not_blacklisted():
     return commands.check(predicate)
 
 
-# --- 3. DYNAMIC WORD SPLITTING ---
+# --- 3. UNIVERSAL WORD & NUMBER SPLITTING ---
 def split_phrase(text: str) -> list[str]:
+    # If phrase has spaces, split directly
     if " " in text:
         return text.split()
 
-    raw_blocks = re.findall(r"[a-zA-Z]+|\d+|[^\w\s]+", text)
-    sections = []
+    # Smart regex pattern: splits camelCase, numbers, and symbols dynamically
+    tokens = re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\d|\W|$)|[0-9]+|\W+', text)
 
-    # Sort dictionary words by length to match the longest words first
-    sorted_dict = sorted(COMMON_WORDS, key=len, reverse=True)
+    # Fallback chunker if text is all lower-case with no spaces
+    if not tokens or len(tokens) == 1:
+        clean = text.lower()
+        chunk_size = 4 if len(clean) <= 12 else 5
+        return [clean[i:i+chunk_size] for i in range(0, len(clean), chunk_size)]
 
-    for block in raw_blocks:
-        if block.isalpha():
-            remaining = block.lower()
-
-            while remaining:
-                matched = False
-                for word in sorted_dict:
-                    if len(word) > 1 and remaining.startswith(word):
-                        sections.append(remaining[: len(word)])
-                        remaining = remaining[len(word) :]
-                        matched = True
-                        break
-
-                if not matched:
-                    take = min(4, len(remaining))
-                    sections.append(remaining[:take])
-                    remaining = remaining[take:]
-        else:
-            sections.append(block)
-
-    return sections
+    return tokens
 
 
 # --- 4. CODE CREATION HELPER ---
