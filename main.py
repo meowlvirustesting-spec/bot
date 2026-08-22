@@ -286,7 +286,6 @@ async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
     except (discord.Forbidden, discord.NotFound):
         pass
 
-    # Check if target role is higher than or equal to the author's highest role
     if role.position >= ctx.author.top_role.position:
         await ctx.send(
             f"❌ {ctx.author.mention}, you cannot create a code for {role.mention} because it is higher than or equal to your highest role!",
@@ -294,7 +293,6 @@ async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
         )
         return
 
-    # Check if the bot's highest role is lower than the target role
     if role.position >= ctx.guild.me.top_role.position:
         await ctx.send(
             f"❌ {ctx.author.mention}, I cannot assign {role.mention} because it is higher than my highest role!",
@@ -509,8 +507,8 @@ async def on_message(message):
         if code_data["ready"]:
             target_code = code_data["code"]
 
-            if message.content.strip().lower() == target_code:
-                # Check if the user trying to redeem the code is blacklisted
+            # Case-insensitive comparison (converting user input to lowercase)
+            if message.content.strip().lower() == target_code.lower():
                 if message.author.id in blacklisted_users:
                     await message.channel.send(
                         f"🚫 {message.author.mention} You have been blacklisted from using the bot! You cannot redeem this code!"
