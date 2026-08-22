@@ -3,6 +3,7 @@ import random
 import re
 import asyncio
 import threading
+import time
 from flask import Flask
 import discord
 from discord.ext import commands
@@ -46,7 +47,8 @@ def home():
 
 
 def run_server():
-    port = int(os.environ.get("PORT", 8080))
+    # Render assigns dynamic ports via $PORT, defaulting to 10000
+    port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
 
@@ -541,11 +543,22 @@ async def on_message(message):
                     )
 
 
-# --- 12. RUN BOT ---
+# --- 12. RUN BOT WITH RATE-LIMIT HANDLING ---
 if __name__ == "__main__":
     keep_alive()
     token = os.getenv("DISCORD_TOKEN")
     if token:
-        bot.run(token)
+        while True:
+            try:
+                bot.run(token)
+            except discord.errors.HTTPException as e:
+                if e.status == 429:
+                    print("Rate limited by Discord/Cloudflare (429). Retrying in 60 seconds...")
+                    time.sleep(60)
+                else:
+                    raise e
+            except Exception as e:
+                print(f"Unexpected connection error: {e}")
+                time.sleep(10)
     else:
         print("Error: DISCORD_TOKEN is missing!")
