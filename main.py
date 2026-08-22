@@ -391,11 +391,6 @@ async def createriddle_error(ctx, error):
 @is_not_blacklisted()
 @commands.has_role(ALLOWED_ROLE_NAME)
 async def blacklist(ctx, user: discord.User | discord.Member):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
-
     if user.id in blacklisted_users:
         await ctx.send(f"⚠️ {user.mention} is already blacklisted.", delete_after=5)
         return
@@ -408,11 +403,6 @@ async def blacklist(ctx, user: discord.User | discord.Member):
 
 @blacklist.error
 async def blacklist_error(ctx, error):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
-
     if isinstance(error, commands.MissingRole):
         await ctx.send(
             f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!",
@@ -426,11 +416,6 @@ async def blacklist_error(ctx, error):
 @is_not_blacklisted()
 @commands.has_role(ALLOWED_ROLE_NAME)
 async def unblacklist(ctx, user: discord.User | discord.Member):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
-
     if user.id not in blacklisted_users:
         await ctx.send(f"⚠️ {user.mention} is not blacklisted.", delete_after=5)
         return
@@ -441,11 +426,6 @@ async def unblacklist(ctx, user: discord.User | discord.Member):
 
 @unblacklist.error
 async def unblacklist_error(ctx, error):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
-
     if isinstance(error, commands.MissingRole):
         await ctx.send(
             f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!",
