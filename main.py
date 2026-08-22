@@ -19,7 +19,7 @@ RIDDLE_BANK = [
     ("What is Sammy's favorite color?", "BLUE"),
     ("What is bradar's favorite brainrot?", "SPINNYHAMMY"),
     ("What is Toothpik's worst missed log?", "CELESTIALPEGASUS"),
-    ("What was the most recent brainrot added to the game?", "LAFUSEMACHINE"),
+    ("What was the most recent brainrot added to the game?", "SAMMYNITRUCKINI"),
     ("The first limited quantity brainrot was called?", "LAEXTINCTGRANDE"),
 ]
 
@@ -157,7 +157,7 @@ async def process_code_creation(
     embed.description = (
         f"**Created by:** {creator.mention}\n\n"
         f"**USE CODE:** {clean_code}{reward_text}\n\n"
-        f"Type the full code in claim!"
+        f"Type the full code in chat to claim!"
     )
     embed.color = discord.Color.green()
     await message.edit(embed=embed)
@@ -519,10 +519,6 @@ async def on_message(message):
         await bot.invoke(ctx)
         return
 
-    # Ignore any messages from blacklisted users for code guessing
-    if message.author.id in blacklisted_users:
-        return
-
     channel_id = message.channel.id
 
     if channel_id in active_codes:
@@ -532,6 +528,13 @@ async def on_message(message):
             target_code = code_data["code"]
 
             if message.content.strip().lower() == target_code:
+                # Check if the user trying to redeem the code is blacklisted
+                if message.author.id in blacklisted_users:
+                    await message.channel.send(
+                        f"🚫 {message.author.mention} You have been blacklisted from using the bot! You cannot redeem this code!"
+                    )
+                    return
+
                 role_id = code_data.get("role_id")
 
                 del active_codes[channel_id]
