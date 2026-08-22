@@ -4,6 +4,7 @@ import re
 import asyncio
 import threading
 import time
+import wordninja
 from flask import Flask
 import discord
 from discord.ext import commands
@@ -66,22 +67,15 @@ def is_not_blacklisted():
     return commands.check(predicate)
 
 
-# --- 3. UNIVERSAL WORD & NUMBER SPLITTING ---
+# --- 3. DYNAMIC WORD & NUMBER SPLITTING ---
 def split_phrase(text: str) -> list[str]:
-    # If phrase has spaces, split directly
+    # If phrase already has spaces, preserve exact space-separated words
     if " " in text:
         return text.split()
 
-    # Smart regex pattern: splits camelCase, numbers, and symbols dynamically
-    tokens = re.findall(r'[A-Z]?[a-z]+|[A-Z]+(?=[A-Z][a-z]|\d|\W|$)|[0-9]+|\W+', text)
-
-    # Fallback chunker if text is all lower-case with no spaces
-    if not tokens or len(tokens) == 1:
-        clean = text.lower()
-        chunk_size = 4 if len(clean) <= 12 else 5
-        return [clean[i:i+chunk_size] for i in range(0, len(clean), chunk_size)]
-
-    return tokens
+    # Smart split smashed words/numbers into clean English components using wordninja
+    sections = wordninja.split(text)
+    return sections if sections else [text]
 
 
 # --- 4. CODE CREATION HELPER ---
@@ -372,7 +366,7 @@ async def on_message(message):
                     await message.channel.send(f"{message.author.mention} Correct answer!")
 
 
-# --- 8. RUN BOT ---
+# --- 8. RUN BOT WITH RATE-LIMIT HANDLING ---
 if __name__ == "__main__":
     keep_alive()
     token = os.getenv("DISCORD_TOKEN")
