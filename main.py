@@ -215,61 +215,17 @@ async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
 @bot.command()
 @is_not_blacklisted()
 @commands.has_role(ALLOWED_ROLE_NAME)
-async def createriddle(
-    ctx,
-    arg1: discord.Role | discord.TextChannel | str | None = None,
-    arg2: discord.TextChannel | str | None = None,
-    arg3: str | None = None,
-    arg4: str | None = None,
-):
+async def createriddle(ctx, question: str | None = None, answer: str | None = None):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
         pass
 
-    target_channel = ctx.channel
-    reward_role = None
-    question = None
-    answer = None
-
-    args = [a for a in [arg1, arg2, arg3, arg4] if a is not None]
-
-    for item in list(args):
-        if isinstance(item, discord.Role) and reward_role is None:
-            reward_role = item
-            args.remove(item)
-        elif isinstance(item, discord.TextChannel) and target_channel == ctx.channel:
-            target_channel = item
-            args.remove(item)
-
-    if len(args) == 2:
-        question = str(args[0])
-        answer = str(args[1])
-    else:
-        await ctx.send(
-            "❌ **Usage:** `!createriddle [@Role] [#channel] \"Question\" \"Answer\"`",
-            delete_after=5,
-        )
+    if not question or not answer:
+        await ctx.send("❌ **Usage:** `!createriddle \"Question\" \"Answer\"`", delete_after=5)
         return
 
-    if reward_role:
-        if reward_role.position >= ctx.author.top_role.position:
-            await ctx.send(
-                f"❌ {ctx.author.mention}, you cannot create a riddle for {reward_role.mention} because it is higher than or equal to your role!",
-                delete_after=5,
-            )
-            return
-
-        if reward_role.position >= ctx.guild.me.top_role.position:
-            await ctx.send(
-                f"❌ {ctx.author.mention}, I cannot assign {reward_role.mention} because it is higher than my highest role!",
-                delete_after=5,
-            )
-            return
-
-    await process_riddle_creation(
-        target_channel, question, answer, ctx.author, reward_role=reward_role
-    )
+    await process_riddle_creation(ctx.channel, question, answer, ctx.author)
 
 
 @createriddle.error
@@ -319,7 +275,7 @@ async def cmds(ctx):
     )
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
-    embed.add_field(name="`!createriddle [@role] [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle (role optional).", inline=False)
+    embed.add_field(name="`!createriddle \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
     embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes.", inline=False)
     embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist.", inline=False)
     await ctx.send(embed=embed)
