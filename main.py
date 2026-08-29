@@ -106,7 +106,7 @@ async def process_code_creation(
     embed.description = (
         f"**Created by:** {creator.mention}\n\n"
         f"**USE CODE:** {clean_code}{reward_text}\n\n"
-        f"Type the full code in claim!"
+        f"Type the full code in chat to claim!"
     )
     embed.color = discord.Color.green()
     await message.edit(embed=embed)
@@ -215,22 +215,16 @@ async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
 @bot.command()
 @is_not_blacklisted()
 @commands.has_role(ALLOWED_ROLE_NAME)
-async def createriddle(ctx, *, args: str = ""):
+async def createriddle(ctx, channel: discord.TextChannel | None = None, *, rest: str = ""):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
         pass
 
-    target_channel = ctx.channel
-    clean_args = args.strip()
-
-    # Check for channel mention at the beginning
-    if ctx.message.channel_mentions:
-        target_channel = ctx.message.channel_mentions[0]
-        clean_args = re.sub(r"<#\d+>", "", clean_args).strip()
-
-    # Match exact quoted string pattern: "Question" "Answer"
-    matches = re.findall(r'"([^"]*)"', clean_args)
+    target_channel = channel or ctx.channel
+    
+    # Extract strings enclosed in double quotes
+    matches = re.findall(r'"([^"]*)"', rest)
 
     if len(matches) < 2:
         await ctx.send(
