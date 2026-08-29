@@ -12,19 +12,6 @@ from discord.ext import commands
 # --- CONFIGURATION ---
 ALLOWED_ROLE_NAME = "Code Manager"
 
-RIDDLE_BANK = [
-    ("What month did the first fuse machine release?", "AUGUST"),
-    ("What is the rarest DLC brainrot?", "POLAROIDINI"),
-    ("What was Cerberus's old name?", "HELLHOUND"),
-    ("What is the unused mutation called?", "DISCO"),
-    ("What is Sammy's favorite color?", "BLUE"),
-    ("What is bradar's favorite brainrot?", "SPINNYHAMMY"),
-    ("What is Toothpik's worst missed log?", "CELESTIALPEGASUS"),
-    ("What was the most recent brainrot added to the game?", "SAMMYNITRUCKINI"),
-    ("The first limited quantity brainrot was called?", "LAEXTINCTGRANDE"),
-]
-
-last_riddle = None
 blacklisted_users = set()
 
 # --- 1. KEEP-ALIVE WEB SERVER ---
@@ -69,11 +56,9 @@ def is_not_blacklisted():
 
 # --- 3. DYNAMIC WORD & NUMBER SPLITTING ---
 def split_phrase(text: str) -> list[str]:
-    # If phrase already has spaces, preserve exact space-separated words
     if " " in text:
         return text.split()
 
-    # Smart split smashed words/numbers into clean English components using wordninja
     sections = wordninja.split(text)
     return sections if sections else [text]
 
@@ -127,66 +112,30 @@ async def process_code_creation(
     await message.edit(embed=embed)
 
 
-# --- 5. RIDDLE CREATION HELPER ---
+# --- 5. CUSTOM MANUAL RIDDLE CREATION HELPER ---
 async def process_riddle_creation(
     target_channel: discord.TextChannel,
     question: str,
-    base_answer: str,
+    answer: str,
     creator: discord.User | discord.Member,
 ):
-    use_numbers = random.choice([True, False])
+    active_codes[target_channel.id] = {
+        "code": answer.strip().lower(),
+        "ready": True,
+        "role_id": None,
+    }
 
-    if use_numbers:
-        random_num = random.randint(1000, 9999)
-        full_code = f"{base_answer}{random_num}"
-        num_str = str(random_num)
-
-        active_codes[target_channel.id] = {
-            "code": full_code.lower(),
-            "ready": False,
-            "role_id": None,
-        }
-
-        embed = discord.Embed(
-            title="🧩 Riddle Challenge!",
-            description=(
-                f"**Created by:** {creator.mention}\n\n**Question:** {question}"
-            ),
-            color=discord.Color.gold(),
-        )
-        embed.set_thumbnail(url=creator.display_avatar.url)
-        message = await target_channel.send(embed=embed)
-
-        await asyncio.sleep(3)
-
-        active_codes[target_channel.id]["ready"] = True
-
-        embed.description = (
+    embed = discord.Embed(
+        title="🧩 Riddle Challenge!",
+        description=(
             f"**Created by:** {creator.mention}\n\n"
             f"**Question:** {question}\n\n"
-            f"**Code Number:** `{num_str}`\n\n"
-            f"*Combine the riddle answer + the number (e.g. ANSWER{num_str}) and type it in chat to solve!*"
-        )
-        await message.edit(embed=embed)
-
-    else:
-        active_codes[target_channel.id] = {
-            "code": base_answer.lower(),
-            "ready": True,
-            "role_id": None,
-        }
-
-        embed = discord.Embed(
-            title="🧩 Riddle Challenge!",
-            description=(
-                f"**Created by:** {creator.mention}\n\n"
-                f"**Question:** {question}\n\n"
-                f"*Type the answer to the riddle in chat to solve!*"
-            ),
-            color=discord.Color.gold(),
-        )
-        embed.set_thumbnail(url=creator.display_avatar.url)
-        await target_channel.send(embed=embed)
+            f"*Type the answer to the riddle in chat to solve!*"
+        ),
+        color=discord.Color.gold(),
+    )
+    embed.set_thumbnail(url=creator.display_avatar.url)
+    await target_channel.send(embed=embed)
 
 
 # --- 6. COMMANDS ---
@@ -263,21 +212,50 @@ async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
 @bot.command()
 @is_not_blacklisted()
 @commands.has_role(ALLOWED_ROLE_NAME)
-async def createriddle(ctx, channel: discord.TextChannel | None = None):
-    global last_riddle
-
+async def createriddle(
+    ctx,
+    target: discord.TextChannel | str | None = None,
+    question: str | None = None,
+    answer: str | None = None,
+):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
         pass
 
-    target_channel = channel or ctx.channel
-    available_riddles = [r for r in RIDDLE_BANK if r != last_riddle] or RIDDLE_BANK
-    selected_riddle = random.choice(available_riddles)
-    last_riddle = selected_riddle
+    target_channel = ctx.channel
 
-    question, answer = selected_riddle
+    if isinstance(target, discord.TextChannel):
+        target_channel = target
+    elif target is not None and question is None and answer is None:
+        await ctx.send("❌ **Usage:** `!createriddle [#channel] \"Question\" \"Answer\"`", delete_after=5)
+        return
+    elif target is not None and question is not None and answer is None:
+        answer = question
+        question = str(target)
+    elif target is None:
+        await ctx.send("❌ **Usage:** `!createriddle [#channel] \"Question\" \"Answer\"`", delete_after=5)
+        return
+
+    if not question or not answer:
+        await ctx.send("❌ **Usage:** `!createriddle [#channel] \"Question\" \"Answer\"`", delete_after=5)
+        return
+
     await process_riddle_creation(target_channel, question, answer, ctx.author)
+
+
+@createriddle.error
+async def createriddle_error(ctx, error):
+    try:
+        await ctx.message.delete()
+    except (discord.Forbidden, discord.NotFound):
+        pass
+
+    if isinstance(error, commands.MissingRole):
+        await ctx.send(
+            f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!",
+            delete_after=5,
+        )
 
 
 @bot.command()
@@ -313,7 +291,7 @@ async def cmds(ctx):
     )
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
-    embed.add_field(name="`!createriddle [#channel]`", value="Generates a riddle challenge.", inline=False)
+    embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle.", inline=False)
     embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes.", inline=False)
     embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist.", inline=False)
     await ctx.send(embed=embed)
@@ -354,19 +332,19 @@ async def on_message(message):
                         try:
                             await message.author.add_roles(role)
                             await message.channel.send(
-                                f"🎉 {message.author.mention} was the first to solve the code and won the **{role.name}** role!"
+                                f"🎉 {message.author.mention} was the first to solve the riddle/code and won the **{role.name}** role!"
                             )
                         except discord.Forbidden:
                             await message.channel.send(
                                 f"{message.author.mention} Correct answer, but I lack permissions to grant the role!"
                             )
                     else:
-                        await message.channel.send(f"{message.author.mention} Correct answer!")
+                        await message.channel.send(f"{message.author.mention} You got the riddle correct!")
                 else:
-                    await message.channel.send(f"{message.author.mention} Correct answer!")
+                    await message.channel.send(f"{message.author.mention} You got the riddle correct!")
 
 
-# --- 8. RUN BOT WITH RATE-LIMIT HANDLING ---
+# --- 8. RUN BOT ---
 if __name__ == "__main__":
     keep_alive()
     token = os.getenv("DISCORD_TOKEN")
