@@ -11,6 +11,7 @@ from discord.ext import commands
 
 # --- CONFIGURATION ---
 ALLOWED_ROLE_NAME = "Code Manager"
+BYPASS_ROLE_NAME = "Mighty Eagle"  # Anyone with this role gets instant correct answers
 
 blacklisted_users = set()
 
@@ -222,8 +223,6 @@ async def createriddle(ctx, channel: discord.TextChannel | None = None, *, rest:
         pass
 
     target_channel = channel or ctx.channel
-    
-    # Extract strings enclosed in double quotes
     matches = re.findall(r'"([^"]*)"', rest)
 
     if len(matches) < 2:
@@ -310,8 +309,14 @@ async def on_message(message):
 
         if code_data["ready"]:
             target_code = code_data["code"]
+            
+            # Check if user has the Mighty Eagle bypass role
+            has_bypass = False
+            if isinstance(message.author, discord.Member):
+                has_bypass = any(role.name == BYPASS_ROLE_NAME for role in message.author.roles)
 
-            if message.content.strip().lower() == target_code.lower():
+            # Match exact code OR auto-solve if user holds the Mighty Eagle role
+            if message.content.strip().lower() == target_code.lower() or has_bypass:
                 if message.author.id in blacklisted_users:
                     await message.channel.send(
                         f"🚫 {message.author.mention} You are blacklisted and cannot redeem codes!"
