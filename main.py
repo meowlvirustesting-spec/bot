@@ -215,17 +215,37 @@ async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
 @bot.command()
 @is_not_blacklisted()
 @commands.has_role(ALLOWED_ROLE_NAME)
-async def createriddle(ctx, question: str | None = None, answer: str | None = None):
+async def createriddle(
+    ctx,
+    arg1: discord.TextChannel | str | None = None,
+    arg2: str | None = None,
+    arg3: str | None = None,
+):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
         pass
 
+    target_channel = ctx.channel
+    question = None
+    answer = None
+
+    if isinstance(arg1, discord.TextChannel):
+        target_channel = arg1
+        question = arg2
+        answer = arg3
+    else:
+        question = arg1
+        answer = arg2
+
     if not question or not answer:
-        await ctx.send("❌ **Usage:** `!createriddle \"Question\" \"Answer\"`", delete_after=5)
+        await ctx.send(
+            "❌ **Usage:** `!createriddle [#channel] \"Question\" \"Answer\"`",
+            delete_after=5,
+        )
         return
 
-    await process_riddle_creation(ctx.channel, question, answer, ctx.author)
+    await process_riddle_creation(target_channel, question, answer, ctx.author)
 
 
 @createriddle.error
@@ -275,7 +295,7 @@ async def cmds(ctx):
     )
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
-    embed.add_field(name="`!createriddle \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
+    embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
     embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes.", inline=False)
     embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist.", inline=False)
     await ctx.send(embed=embed)
