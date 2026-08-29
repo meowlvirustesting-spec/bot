@@ -76,6 +76,7 @@ async def process_code_creation(
         "code": clean_code.lower(),
         "ready": False,
         "role_id": reward_role.id if reward_role else None,
+        "type": "code",
     }
 
     embed = discord.Embed(
@@ -125,6 +126,7 @@ async def process_riddle_creation(
         "code": answer.strip().lower(),
         "ready": True,
         "role_id": reward_role.id if reward_role else None,
+        "type": "riddle",
     }
 
     reward_text = f"\n**Reward:** {reward_role.mention}" if reward_role else ""
@@ -324,6 +326,7 @@ async def on_message(message):
                     return
 
                 role_id = code_data.get("role_id")
+                challenge_type = code_data.get("type", "code")
                 del active_codes[channel_id]
 
                 if role_id and isinstance(message.author, discord.Member):
@@ -332,16 +335,16 @@ async def on_message(message):
                         try:
                             await message.author.add_roles(role)
                             await message.channel.send(
-                                f"🎉 {message.author.mention} was the first to solve the riddle/code and won the **{role.name}** role!"
+                                f"🎉 {message.author.mention} was the first to solve the {challenge_type} and won the **{role.name}** role!"
                             )
                         except discord.Forbidden:
                             await message.channel.send(
                                 f"{message.author.mention} Correct answer, but I lack permissions to grant the role!"
                             )
                     else:
-                        await message.channel.send(f"{message.author.mention} You got the riddle correct!")
+                        await message.channel.send(f"🎉 {message.author.mention} got the {challenge_type} correct!")
                 else:
-                    await message.channel.send(f"{message.author.mention} You got the riddle correct!")
+                    await message.channel.send(f"🎉 {message.author.mention} got the {challenge_type} correct!")
 
 
 # --- 8. RUN BOT ---
