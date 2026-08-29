@@ -106,7 +106,7 @@ async def process_code_creation(
     embed.description = (
         f"**Created by:** {creator.mention}\n\n"
         f"**USE CODE:** {clean_code}{reward_text}\n\n"
-        f"Type the full code in chat to claim!"
+        f"Type the full code in claim!"
     )
     embed.color = discord.Color.green()
     await message.edit(embed=embed)
@@ -215,35 +215,32 @@ async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
 @bot.command()
 @is_not_blacklisted()
 @commands.has_role(ALLOWED_ROLE_NAME)
-async def createriddle(
-    ctx,
-    arg1: discord.TextChannel | str | None = None,
-    arg2: str | None = None,
-    arg3: str | None = None,
-):
+async def createriddle(ctx, *, args: str = ""):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
         pass
 
     target_channel = ctx.channel
-    question = None
-    answer = None
+    clean_args = args.strip()
 
-    if isinstance(arg1, discord.TextChannel):
-        target_channel = arg1
-        question = arg2
-        answer = arg3
-    else:
-        question = arg1
-        answer = arg2
+    # Check for channel mention at the beginning
+    if ctx.message.channel_mentions:
+        target_channel = ctx.message.channel_mentions[0]
+        clean_args = re.sub(r"<#\d+>", "", clean_args).strip()
 
-    if not question or not answer:
+    # Match exact quoted string pattern: "Question" "Answer"
+    matches = re.findall(r'"([^"]*)"', clean_args)
+
+    if len(matches) < 2:
         await ctx.send(
             "❌ **Usage:** `!createriddle [#channel] \"Question\" \"Answer\"`",
             delete_after=5,
         )
         return
+
+    question = matches[0]
+    answer = matches[1]
 
     await process_riddle_creation(target_channel, question, answer, ctx.author)
 
