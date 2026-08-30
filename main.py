@@ -15,7 +15,7 @@ BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Anyone with this role gets ins
 
 # Set your specific Admin Role OR your exact Discord User ID here
 ADMIN_ROLE_NAME = "Ted" 
-ADMIN_USER_ID = 1508960806547623946  # Replace with your numerical Discord User ID (or leave as None)
+ADMIN_USER_ID = 123456789012345678  # Replace with your numerical Discord User ID (or leave as None)
 
 blacklisted_users = set()
 
@@ -256,8 +256,48 @@ async def createriddle(ctx, channel: discord.TextChannel | None = None, *, rest:
     await process_riddle_creation(target_channel, question, answer, ctx.author)
 
 
+@bot.command()
+@is_not_blacklisted()
+@commands.has_role(ALLOWED_ROLE_NAME)
+async def createroleriddle(ctx, role: discord.Role, channel: discord.TextChannel | None = None, *, rest: str = ""):
+    try:
+        await ctx.message.delete()
+    except (discord.Forbidden, discord.NotFound):
+        pass
+
+    if role.position >= ctx.author.top_role.position:
+        await ctx.send(
+            f"❌ {ctx.author.mention}, you cannot create a riddle for {role.mention} because it is higher than or equal to your role!",
+            delete_after=5,
+        )
+        return
+
+    if role.position >= ctx.guild.me.top_role.position:
+        await ctx.send(
+            f"❌ {ctx.author.mention}, I cannot assign {role.mention} because it is higher than my highest role!",
+            delete_after=5,
+        )
+        return
+
+    target_channel = channel or ctx.channel
+    matches = re.findall(r'"([^"]*)"', rest)
+
+    if len(matches) < 2:
+        await ctx.send(
+            "❌ **Usage:** `!createroleriddle @Role [#channel] \"Question\" \"Answer\"`",
+            delete_after=5,
+        )
+        return
+
+    question = matches[0]
+    answer = matches[1]
+
+    await process_riddle_creation(target_channel, question, answer, ctx.author, reward_role=role)
+
+
 @createriddle.error
-async def createriddle_error(ctx, error):
+@createroleriddle.error
+async def riddle_error(ctx, error):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
@@ -311,6 +351,7 @@ async def cmds(ctx):
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
     embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
+    embed.add_field(name="`!createroleriddle <@role> [#channel] \"Question\" \"Answer\"`", value="Creates a role reward riddle challenge.", inline=False)
     embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes (Admin only).", inline=False)
     embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist (Admin only).", inline=False)
     await ctx.send(embed=embed)
