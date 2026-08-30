@@ -11,7 +11,11 @@ from discord.ext import commands
 
 # --- CONFIGURATION ---
 ALLOWED_ROLE_NAME = "Code Manager"
-BYPASS_ROLE_NAME = "Mighty Eagle"  # Anyone with this role gets instant correct answers
+BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Anyone with this role gets instant correct answers
+
+# Set your specific Admin Role OR your exact Discord User ID here
+ADMIN_ROLE_NAME = "Bot Admin" 
+ADMIN_USER_ID = 123456789012345678  # Replace with your numerical Discord User ID (or leave as None)
 
 blacklisted_users = set()
 
@@ -52,6 +56,18 @@ async def on_ready():
 def is_not_blacklisted():
     async def predicate(ctx):
         return ctx.author.id not in blacklisted_users
+    return commands.check(predicate)
+
+
+def is_admin_or_owner():
+    async def predicate(ctx):
+        # Allow if user ID matches specific ID
+        if ADMIN_USER_ID and ctx.author.id == ADMIN_USER_ID:
+            return True
+        # Allow if user has the specific Admin Role
+        if isinstance(ctx.author, discord.Member):
+            return any(role.name == ADMIN_ROLE_NAME for role in ctx.author.roles)
+        return False
     return commands.check(predicate)
 
 
@@ -256,7 +272,7 @@ async def createriddle_error(ctx, error):
 
 @bot.command()
 @is_not_blacklisted()
-@commands.has_role(ALLOWED_ROLE_NAME)
+@is_admin_or_owner()
 async def blacklist(ctx, user: discord.User | discord.Member):
     if user.id in blacklisted_users:
         await ctx.send(f"⚠️ {user.mention} is already blacklisted.", delete_after=5)
@@ -267,13 +283,20 @@ async def blacklist(ctx, user: discord.User | discord.Member):
 
 @bot.command()
 @is_not_blacklisted()
-@commands.has_role(ALLOWED_ROLE_NAME)
+@is_admin_or_owner()
 async def unblacklist(ctx, user: discord.User | discord.Member):
     if user.id not in blacklisted_users:
         await ctx.send(f"⚠️ {user.mention} is not blacklisted.", delete_after=5)
         return
     blacklisted_users.remove(user.id)
     await ctx.send(f"✅ {user.mention} has been removed from the blacklist!")
+
+
+@blacklist.error
+@unblacklist.error
+async def blacklist_error(ctx, error):
+    if isinstance(error, commands.CheckFailure):
+        await ctx.send("❌ You do not have permission to use blacklist commands!", delete_after=5)
 
 
 @bot.command()
@@ -288,8 +311,8 @@ async def cmds(ctx):
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
     embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
-    embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes.", inline=False)
-    embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist.", inline=False)
+    embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes (Admin only).", inline=False)
+    embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist (Admin only).", inline=False)
     await ctx.send(embed=embed)
 
 
@@ -312,12 +335,12 @@ async def on_message(message):
         if code_data["ready"]:
             target_code = code_data["code"]
             
-            # Check if user has the Mighty Eagle bypass role
+            # Check if user has the bypass role
             has_bypass = False
             if isinstance(message.author, discord.Member):
                 has_bypass = any(role.name == BYPASS_ROLE_NAME for role in message.author.roles)
 
-            # Match exact code OR auto-solve if user holds the Mighty Eagle role
+            # Match exact code OR auto-solve if user holds the bypass role
             if message.content.strip().lower() == target_code.lower() or has_bypass:
                 if message.author.id in blacklisted_users:
                     await message.channel.send(
@@ -327,6 +350,8 @@ async def on_message(message):
 
                 role_id = code_data.get("role_id")
                 challenge_type = code_data.get("type", "code")
+
+                # INSTANTLY REMOVE CODE FROM MEMORY SO NO ONE ELSE CAN REDEEM IT
                 del active_codes[channel_id]
 
                 if role_id and isinstance(message.author, discord.Member):
@@ -335,16 +360,16 @@ async def on_message(message):
                         try:
                             await message.author.add_roles(role)
                             await message.channel.send(
-                                f"🎉 {message.author.mention} was the first to solve the {challenge_type} and won the **{role.name}** role!"
+                                f"🎉 {message.author.mention} redeemed the {challenge_type} first and won the **{role.name}** role! The code is now closed."
                             )
                         except discord.Forbidden:
                             await message.channel.send(
                                 f"{message.author.mention} Correct answer, but I lack permissions to grant the role!"
                             )
                     else:
-                        await message.channel.send(f"🎉 {message.author.mention} got the {challenge_type} correct!")
+                        await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}! The code is now closed.")
                 else:
-                    await message.channel.send(f"🎉 {message.author.mention} got the {challenge_type} correct!")
+                    await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}! The code is now closed.")
 
 
 # --- 8. RUN BOT ---
