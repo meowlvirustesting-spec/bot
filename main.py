@@ -15,7 +15,7 @@ BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Anyone with this role gets ins
 
 # Set your specific Admin Role OR your exact Discord User ID here
 ADMIN_ROLE_NAME = "Ted" 
-ADMIN_USER_ID = 123456789012345678  # Replace with your numerical Discord User ID (or leave as None)
+ADMIN_USER_ID = 1508960806547623946  # Replace with your numerical Discord User ID (or leave as None)
 
 blacklisted_users = set()
 
