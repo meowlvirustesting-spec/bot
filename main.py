@@ -13,9 +13,9 @@ from discord.ext import commands
 ALLOWED_ROLE_NAME = "Code Manager"
 BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Anyone with this role gets instant correct answers
 
-# Set your specific Admin Role OR your exact Discord User ID here
-ADMIN_ROLE_NAME = "Ted" 
-ADMIN_USER_ID = 123456789012345678  # Replace with your numerical Discord User ID (or leave as None)
+# Updated Admin Role and User IDs
+ADMIN_ROLE_NAME = "Blacklist Handler" 
+ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
 
 blacklisted_users = set()
 
@@ -61,8 +61,8 @@ def is_not_blacklisted():
 
 def is_admin_or_owner():
     async def predicate(ctx):
-        # Allow if user ID matches specific ID
-        if ADMIN_USER_ID and ctx.author.id == ADMIN_USER_ID:
+        # Allow if user ID matches any allowed User ID
+        if ctx.author.id in ADMIN_USER_IDS:
             return True
         # Allow if user has the specific Admin Role
         if isinstance(ctx.author, discord.Member):
@@ -341,17 +341,94 @@ async def blacklist_error(ctx, error):
 
 @bot.command()
 @is_not_blacklisted()
+@is_admin_or_owner()
+async def announcement(ctx, channel: discord.TextChannel | None = None, *, message: str = ""):
+    try:
+        await ctx.message.delete()
+    except (discord.Forbidden, discord.NotFound):
+        pass
+
+    if not message.strip():
+        await ctx.send("❌ **Usage:** `!announcement [#channel] Your message here`", delete_after=5)
+        return
+
+    target_channel = channel or ctx.channel
+
+    embed = discord.Embed(
+        title="📢 Server Announcement",
+        description=message,
+        color=discord.Color.blue()
+    )
+    embed.set_footer(text=f"Sent by {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
+
+    try:
+        await target_channel.send(embed=embed)
+        await ctx.send(f"✅ Announcement sent to {target_channel.mention}!", delete_after=5)
+    except discord.Forbidden:
+        await ctx.send(f"❌ I don't have permission to send messages in {target_channel.mention}.", delete_after=5)
+
+
+@bot.command()
+@is_not_blacklisted()
+@is_admin_or_owner()
+async def globalannouncement(ctx, *, message: str = ""):
+    try:
+        await ctx.message.delete()
+    except (discord.Forbidden, discord.NotFound):
+        pass
+
+    if not message.strip():
+        await ctx.send("❌ **Usage:** `!globalannouncement Your message here`", delete_after=5)
+        return
+
+    embed = discord.Embed(
+        title="🌐 Global Announcement",
+        description=message,
+        color=discord.Color.gold()
+    )
+    embed.set_footer(text=f"Sent by Bot Admin", icon_url=ctx.author.display_avatar.url)
+
+    sent_count = 0
+    for guild in bot.guilds:
+        target_channel = guild.system_channel
+        if not target_channel:
+            for ch in guild.text_channels:
+                if ch.permissions_for(guild.me).send_messages:
+                    target_channel = ch
+                    break
+
+        if target_channel:
+            try:
+                await target_channel.send(embed=embed)
+                sent_count += 1
+            except (discord.Forbidden, discord.HTTPException):
+                continue
+
+    await ctx.send(f"✅ Global announcement sent to {sent_count} server(s)!", delete_after=10)
+
+
+@announcement.error
+@globalannouncement.error
+async def announcement_error(ctx, error):
+    if isinstance(error, commands.CheckFailure):
+        await ctx.send("❌ You do not have permission to use announcement commands!", delete_after=5)
+
+
+@bot.command()
+@is_not_blacklisted()
 @commands.has_role(ALLOWED_ROLE_NAME)
 async def cmds(ctx):
     embed = discord.Embed(
         title="🤖 Bot Commands List",
-        description=f"Commands restricted to the **{ALLOWED_ROLE_NAME}** role:",
+        description=f"Commands restricted to **{ALLOWED_ROLE_NAME}** or **{ADMIN_ROLE_NAME}**:",
         color=discord.Color.purple(),
     )
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
     embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
     embed.add_field(name="`!createroleriddle <@role> [#channel] \"Question\" \"Answer\"`", value="Creates a role reward riddle challenge.", inline=False)
+    embed.add_field(name="`!announcement [#channel] <message>`", value="Sends an announcement embed to a specified channel (Admin only).", inline=False)
+    embed.add_field(name="`!globalannouncement <message>`", value="Sends an announcement to all servers (Admin only).", inline=False)
     embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes (Admin only).", inline=False)
     embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist (Admin only).", inline=False)
     await ctx.send(embed=embed)
