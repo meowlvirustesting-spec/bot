@@ -78,7 +78,6 @@ def split_phrase(text: str) -> list[str]:
     if sections:
         return sections
     
-    # Fallback to chunking into 3-character slices if wordninja can't split it
     chunk_size = max(1, len(text) // 3)
     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
@@ -112,7 +111,6 @@ async def process_code_creation(
     async with target_channel.typing():
         for section in sections:
             await asyncio.sleep(2.5)
-            # Add spaces only if the original code had spaces
             if has_spaces:
                 displayed_text += section + " "
             else:
@@ -242,14 +240,20 @@ async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
 @bot.command()
 @is_not_blacklisted()
 @commands.has_role(ALLOWED_ROLE_NAME)
-async def createriddle(ctx, channel: discord.TextChannel | None = None, *, rest: str = ""):
+async def createriddle(ctx, *, rest: str = ""):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
         pass
 
-    target_channel = channel or ctx.channel
-    matches = re.findall(r'"([^"]*)"', rest)
+    target_channel = ctx.channel
+    clean_rest = rest
+
+    if ctx.message.channel_mentions:
+        target_channel = ctx.message.channel_mentions[0]
+        clean_rest = re.sub(r"<#\d+>", "", clean_rest).strip()
+
+    matches = re.findall(r'"([^"]*)"', clean_rest)
 
     if len(matches) < 2:
         await ctx.send(
@@ -267,7 +271,7 @@ async def createriddle(ctx, channel: discord.TextChannel | None = None, *, rest:
 @bot.command()
 @is_not_blacklisted()
 @commands.has_role(ALLOWED_ROLE_NAME)
-async def createroleriddle(ctx, role: discord.Role, channel: discord.TextChannel | None = None, *, rest: str = ""):
+async def createroleriddle(ctx, role: discord.Role, *, rest: str = ""):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
@@ -287,8 +291,14 @@ async def createroleriddle(ctx, role: discord.Role, channel: discord.TextChannel
         )
         return
 
-    target_channel = channel or ctx.channel
-    matches = re.findall(r'"([^"]*)"', rest)
+    target_channel = ctx.channel
+    clean_rest = rest
+
+    if ctx.message.channel_mentions:
+        target_channel = ctx.message.channel_mentions[0]
+        clean_rest = re.sub(r"<#\d+>", "", clean_rest).strip()
+
+    matches = re.findall(r'"([^"]*)"', clean_rest)
 
     if len(matches) < 2:
         await ctx.send(
@@ -304,8 +314,7 @@ async def createroleriddle(ctx, role: discord.Role, channel: discord.TextChannel
 
 
 @createriddle.error
-@createroleriddle.error
-async def riddle_error(ctx, error):
+async def createriddle_error(ctx, error):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
@@ -314,6 +323,30 @@ async def riddle_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send(
             f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!",
+            delete_after=5,
+        )
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(
+            "❌ **Usage:** `!createriddle [#channel] \"Question\" \"Answer\"`",
+            delete_after=5,
+        )
+
+
+@createroleriddle.error
+async def createroleriddle_error(ctx, error):
+    try:
+        await ctx.message.delete()
+    except (discord.Forbidden, discord.NotFound):
+        pass
+
+    if isinstance(error, commands.MissingRole):
+        await ctx.send(
+            f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!",
+            delete_after=5,
+        )
+    elif isinstance(error, (commands.MissingRequiredArgument, commands.RoleNotFound)):
+        await ctx.send(
+            "❌ **Usage:** `!createroleriddle @Role [#channel] \"Question\" \"Answer\"`",
             delete_after=5,
         )
 
