@@ -61,23 +61,26 @@ def is_not_blacklisted():
 
 def is_admin_or_owner():
     async def predicate(ctx):
-        # Allow if user ID matches any allowed User ID
         if ctx.author.id in ADMIN_USER_IDS:
             return True
-        # Allow if user has the specific Admin Role
         if isinstance(ctx.author, discord.Member):
             return any(role.name == ADMIN_ROLE_NAME for role in ctx.author.roles)
         return False
     return commands.check(predicate)
 
 
-# --- 3. DYNAMIC WORD & NUMBER SPLITTING ---
+# --- 3. DYNAMIC WORD & CHUNK SPLITTING ---
 def split_phrase(text: str) -> list[str]:
     if " " in text:
         return text.split()
 
     sections = wordninja.split(text)
-    return sections if sections else [text]
+    if sections:
+        return sections
+    
+    # Fallback to chunking into 3-character slices if wordninja can't split it
+    chunk_size = max(1, len(text) // 3)
+    return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
 
 # --- 4. CODE CREATION HELPER ---
@@ -104,11 +107,16 @@ async def process_code_creation(
     message = await target_channel.send(embed=embed)
 
     displayed_text = ""
+    has_spaces = " " in clean_code
 
     async with target_channel.typing():
         for section in sections:
             await asyncio.sleep(2.5)
-            displayed_text += section + " "
+            # Add spaces only if the original code had spaces
+            if has_spaces:
+                displayed_text += section + " "
+            else:
+                displayed_text += section
 
             embed.description = (
                 f"**Created by:** {creator.mention}\n\n"
@@ -453,12 +461,10 @@ async def on_message(message):
         if code_data["ready"]:
             target_code = code_data["code"]
             
-            # Check if user has the bypass role
             has_bypass = False
             if isinstance(message.author, discord.Member):
                 has_bypass = any(role.name == BYPASS_ROLE_NAME for role in message.author.roles)
 
-            # Match exact code OR auto-solve if user holds the bypass role
             if message.content.strip().lower() == target_code.lower() or has_bypass:
                 if message.author.id in blacklisted_users:
                     await message.channel.send(
@@ -469,7 +475,6 @@ async def on_message(message):
                 role_id = code_data.get("role_id")
                 challenge_type = code_data.get("type", "code")
 
-                # INSTANTLY REMOVE CODE FROM MEMORY SO NO ONE ELSE CAN REDEEM IT
                 del active_codes[channel_id]
 
                 if role_id and isinstance(message.author, discord.Member):
