@@ -475,7 +475,21 @@ async def cmds(ctx):
     await ctx.send(embed=embed)
 
 
-# --- 7. CHAT LISTENER FOR REDEMPTIONS ---
+# --- 7. CHAT LISTENER & GLOBAL ERROR LOGGING ---
+@bot.event
+async def on_command_error(ctx, error):
+    if hasattr(ctx.command, 'on_error'):
+        return
+
+    ignored = (commands.CommandNotFound,)
+    error = getattr(error, 'original', error)
+
+    if isinstance(error, ignored):
+        return
+
+    print(f"Unhandled error in command {ctx.command}: {error}")
+
+
 @bot.event
 async def on_message(message):
     if message.author.bot:
@@ -528,22 +542,29 @@ async def on_message(message):
                     await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}! The code is now closed.")
 
 
-# --- 8. RUN BOT ---
+# --- 8. RUN BOT WITH ASYNC RECONNECT LOOP ---
+async def main():
+    token = os.getenv("DISCORD_TOKEN")
+    if not token:
+        print("Error: DISCORD_TOKEN is missing!")
+        return
+
+    while True:
+        try:
+            async with bot:
+                await bot.start(token)
+        except discord.errors.HTTPException as e:
+            if e.status == 429:
+                print("Rate limited by Discord/Cloudflare. Retrying in 60 seconds...")
+                await asyncio.sleep(60)
+            else:
+                print(f"HTTP Exception: {e}")
+                await asyncio.sleep(10)
+        except Exception as e:
+            print(f"Unexpected connection error: {e}")
+            await asyncio.sleep(10)
+
+
 if __name__ == "__main__":
     keep_alive()
-    token = os.getenv("DISCORD_TOKEN")
-    if token:
-        while True:
-            try:
-                bot.run(token)
-            except discord.errors.HTTPException as e:
-                if e.status == 429:
-                    print("Rate limited by Discord/Cloudflare. Retrying in 60 seconds...")
-                    time.sleep(60)
-                else:
-                    raise e
-            except Exception as e:
-                print(f"Unexpected connection error: {e}")
-                time.sleep(10)
-    else:
-        print("Error: DISCORD_TOKEN is missing!")
+    asyncio.run(main())
