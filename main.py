@@ -10,12 +10,15 @@ import discord
 from discord.ext import commands
 
 # --- CONFIGURATION ---
-ALLOWED_ROLE_NAME = "Code Manager"
 BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Anyone with this role gets instant correct answers
 
-# Updated Admin Role and User IDs
-ADMIN_ROLE_NAME = "Blacklist Handler" 
+# Updated Admin User IDs (Access to administrative functions & settings)
 ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
+
+# Dynamic Config Store
+config = {
+    "code_manager_role": None  # Stores the discord.Role object or role ID dynamically
+}
 
 blacklisted_users = set()
 
@@ -61,10 +64,18 @@ def is_not_blacklisted():
 
 def is_admin_or_owner():
     async def predicate(ctx):
+        return ctx.author.id in ADMIN_USER_IDS
+    return commands.check(predicate)
+
+
+def can_manage_codes():
+    async def predicate(ctx):
         if ctx.author.id in ADMIN_USER_IDS:
             return True
+        if not config["code_manager_role"]:
+            return False
         if isinstance(ctx.author, discord.Member):
-            return any(role.name == ADMIN_ROLE_NAME for role in ctx.author.roles)
+            return config["code_manager_role"] in ctx.author.roles
         return False
     return commands.check(predicate)
 
@@ -168,8 +179,33 @@ async def process_riddle_creation(
 
 # --- 6. COMMANDS ---
 @bot.command()
+@is_admin_or_owner()
+async def setcodemanagerrole(ctx, role: discord.Role):
+    try:
+        await ctx.message.delete()
+    except (discord.Forbidden, discord.NotFound):
+        pass
+
+    config["code_manager_role"] = role
+    await ctx.send(f"✅ Successfully set the Code Manager role to {role.mention}!", delete_after=5)
+
+
+@setcodemanagerrole.error
+async def setcodemanagerrole_error(ctx, error):
+    try:
+        await ctx.message.delete()
+    except (discord.Forbidden, discord.NotFound):
+        pass
+
+    if isinstance(error, commands.CheckFailure):
+        await ctx.send("❌ You do not have permission to change the Code Manager role!", delete_after=5)
+    elif isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send("❌ **Usage:** `!setcodemanagerrole @Role`", delete_after=5)
+
+
+@bot.command()
 @is_not_blacklisted()
-@commands.has_role(ALLOWED_ROLE_NAME)
+@can_manage_codes()
 async def createcode(ctx, *, args: str = ""):
     try:
         await ctx.message.delete()
@@ -197,14 +233,14 @@ async def createcode(ctx, *, args: str = ""):
 
 @bot.command()
 @is_not_blacklisted()
-@commands.has_role(ALLOWED_ROLE_NAME)
+@can_manage_codes()
 async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
         pass
 
-    if role.position >= ctx.author.top_role.position:
+    if role.position >= ctx.author.top_role.position and ctx.author.id not in ADMIN_USER_IDS:
         await ctx.send(
             f"❌ {ctx.author.mention}, you cannot create a code for {role.mention} because it is higher than or equal to your role!",
             delete_after=5,
@@ -239,7 +275,7 @@ async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
 
 @bot.command()
 @is_not_blacklisted()
-@commands.has_role(ALLOWED_ROLE_NAME)
+@can_manage_codes()
 async def createriddle(ctx, *, rest: str = ""):
     try:
         await ctx.message.delete()
@@ -270,14 +306,14 @@ async def createriddle(ctx, *, rest: str = ""):
 
 @bot.command()
 @is_not_blacklisted()
-@commands.has_role(ALLOWED_ROLE_NAME)
+@can_manage_codes()
 async def createroleriddle(ctx, role: discord.Role, *, rest: str = ""):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
         pass
 
-    if role.position >= ctx.author.top_role.position:
+    if role.position >= ctx.author.top_role.position and ctx.author.id not in ADMIN_USER_IDS:
         await ctx.send(
             f"❌ {ctx.author.mention}, you cannot create a riddle for {role.mention} because it is higher than or equal to your role!",
             delete_after=5,
@@ -313,40 +349,21 @@ async def createroleriddle(ctx, role: discord.Role, *, rest: str = ""):
     await process_riddle_creation(target_channel, question, answer, ctx.author, reward_role=role)
 
 
+@createcode.error
+@createrolecode.error
 @createriddle.error
-async def createriddle_error(ctx, error):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
-
-    if isinstance(error, commands.MissingRole):
-        await ctx.send(
-            f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!",
-            delete_after=5,
-        )
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(
-            "❌ **Usage:** `!createriddle [#channel] \"Question\" \"Answer\"`",
-            delete_after=5,
-        )
-
-
 @createroleriddle.error
-async def createroleriddle_error(ctx, error):
+async def code_command_error(ctx, error):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
         pass
 
-    if isinstance(error, commands.MissingRole):
+    if isinstance(error, commands.CheckFailure):
+        role = config["code_manager_role"]
+        role_mention = role.mention if role else "an authorized Code Manager role"
         await ctx.send(
-            f"❌ {ctx.author.mention}, you need the **{ALLOWED_ROLE_NAME}** role to use this command!",
-            delete_after=5,
-        )
-    elif isinstance(error, (commands.MissingRequiredArgument, commands.RoleNotFound)):
-        await ctx.send(
-            "❌ **Usage:** `!createroleriddle @Role [#channel] \"Question\" \"Answer\"`",
+            f"❌ {ctx.author.mention}, you need {role_mention} or Bot Admin status to use this command!",
             delete_after=5,
         )
 
@@ -457,13 +474,15 @@ async def announcement_error(ctx, error):
 
 @bot.command()
 @is_not_blacklisted()
-@commands.has_role(ALLOWED_ROLE_NAME)
+@can_manage_codes()
 async def cmds(ctx):
+    role_text = config["code_manager_role"].mention if config["code_manager_role"] else "Configured Code Manager Role"
     embed = discord.Embed(
         title="🤖 Bot Commands List",
-        description=f"Commands restricted to **{ALLOWED_ROLE_NAME}** or **{ADMIN_ROLE_NAME}**:",
+        description=f"Commands restricted to {role_text} or Bot Admins:",
         color=discord.Color.purple(),
     )
+    embed.add_field(name="`!setcodemanagerrole <@role>`", value="Sets the designated role allowed to manage codes (Admin only).", inline=False)
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
     embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
