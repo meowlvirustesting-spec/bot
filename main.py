@@ -1,5 +1,4 @@
 import os
-import random
 import re
 import asyncio
 import threading
@@ -10,16 +9,13 @@ import discord
 from discord.ext import commands
 
 # --- CONFIGURATION ---
-BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Anyone with this role gets instant correct answers
+BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Instant correct answers for holders
 
-# Updated Admin User IDs (Access to administrative functions & settings)
+# Global Bot Admins (Override permissions on any server)
 ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
 
-# Dynamic Config Store
-config = {
-    "code_manager_role": None  # Stores the discord.Role object or role ID dynamically
-}
-
+# Per-Server Configuration: Guild ID -> Role ID
+server_manager_roles = {}
 blacklisted_users = set()
 
 # --- 1. KEEP-ALIVE WEB SERVER ---
@@ -56,6 +52,7 @@ async def on_ready():
     print(f"Logged in as {bot.user}!")
 
 
+# --- PERMISSION CHECKS ---
 def is_not_blacklisted():
     async def predicate(ctx):
         return ctx.author.id not in blacklisted_users
@@ -68,14 +65,26 @@ def is_admin_or_owner():
     return commands.check(predicate)
 
 
+def is_server_admin():
+    async def predicate(ctx):
+        if ctx.author.id in ADMIN_USER_IDS:
+            return True
+        if isinstance(ctx.author, discord.Member):
+            return ctx.author.guild_permissions.manage_guild or ctx.author.guild_permissions.administrator
+        return False
+    return commands.check(predicate)
+
+
 def can_manage_codes():
     async def predicate(ctx):
         if ctx.author.id in ADMIN_USER_IDS:
             return True
-        if not config["code_manager_role"]:
-            return False
         if isinstance(ctx.author, discord.Member):
-            return config["code_manager_role"] in ctx.author.roles
+            if ctx.author.guild_permissions.administrator:
+                return True
+            assigned_role_id = server_manager_roles.get(ctx.guild.id)
+            if assigned_role_id:
+                return any(role.id == assigned_role_id for role in ctx.author.roles)
         return False
     return commands.check(predicate)
 
@@ -93,7 +102,7 @@ def split_phrase(text: str) -> list[str]:
     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
 
-# --- 4. CODE CREATION HELPER ---
+# --- 4. CODE & RIDDLE CREATION HELPERS ---
 async def process_code_creation(
     target_channel: discord.TextChannel,
     clean_code: str,
@@ -147,7 +156,6 @@ async def process_code_creation(
     await message.edit(embed=embed)
 
 
-# --- 5. CUSTOM MANUAL RIDDLE CREATION HELPER ---
 async def process_riddle_creation(
     target_channel: discord.TextChannel,
     question: str,
@@ -177,17 +185,17 @@ async def process_riddle_creation(
     await target_channel.send(embed=embed)
 
 
-# --- 6. COMMANDS ---
+# --- 5. COMMANDS ---
 @bot.command()
-@is_admin_or_owner()
+@is_server_admin()
 async def setcodemanagerrole(ctx, role: discord.Role):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
         pass
 
-    config["code_manager_role"] = role
-    await ctx.send(f"✅ Successfully set the Code Manager role to {role.mention}!", delete_after=5)
+    server_manager_roles[ctx.guild.id] = role.id
+    await ctx.send(f"✅ Code Manager role for **{ctx.guild.name}** set to {role.mention}!", delete_after=5)
 
 
 @setcodemanagerrole.error
@@ -198,7 +206,7 @@ async def setcodemanagerrole_error(ctx, error):
         pass
 
     if isinstance(error, commands.CheckFailure):
-        await ctx.send("❌ You do not have permission to change the Code Manager role!", delete_after=5)
+        await ctx.send("❌ You need the **Manage Server** or **Administrator** permission to set the manager role!", delete_after=5)
     elif isinstance(error, commands.MissingRequiredArgument):
         await ctx.send("❌ **Usage:** `!setcodemanagerrole @Role`", delete_after=5)
 
@@ -360,10 +368,11 @@ async def code_command_error(ctx, error):
         pass
 
     if isinstance(error, commands.CheckFailure):
-        role = config["code_manager_role"]
-        role_mention = role.mention if role else "an authorized Code Manager role"
+        role_id = server_manager_roles.get(ctx.guild.id)
+        role = ctx.guild.get_role(role_id) if role_id else None
+        role_text = role.mention if role else "a configured Code Manager role (or Server Admin permissions)"
         await ctx.send(
-            f"❌ {ctx.author.mention}, you need {role_mention} or Bot Admin status to use this command!",
+            f"❌ {ctx.author.mention}, you need {role_text} to use this command!",
             delete_after=5,
         )
 
@@ -399,7 +408,7 @@ async def blacklist_error(ctx, error):
 
 @bot.command()
 @is_not_blacklisted()
-@is_admin_or_owner()
+@is_server_admin()
 async def announcement(ctx, channel: discord.TextChannel | None = None, *, message: str = ""):
     try:
         await ctx.message.delete()
@@ -444,7 +453,7 @@ async def globalannouncement(ctx, *, message: str = ""):
         description=message,
         color=discord.Color.gold()
     )
-    embed.set_footer(text=f"Sent by Bot Admin", icon_url=ctx.author.display_avatar.url)
+    embed.set_footer(text="Sent by Bot Admin", icon_url=ctx.author.display_avatar.url)
 
     sent_count = 0
     for guild in bot.guilds:
@@ -476,25 +485,28 @@ async def announcement_error(ctx, error):
 @is_not_blacklisted()
 @can_manage_codes()
 async def cmds(ctx):
-    role_text = config["code_manager_role"].mention if config["code_manager_role"] else "Configured Code Manager Role"
+    role_id = server_manager_roles.get(ctx.guild.id)
+    role = ctx.guild.get_role(role_id) if role_id else None
+    role_text = role.mention if role else "Configured Code Manager Role or Server Admin"
+
     embed = discord.Embed(
         title="🤖 Bot Commands List",
-        description=f"Commands restricted to {role_text} or Bot Admins:",
+        description=f"Commands restricted to {role_text}:",
         color=discord.Color.purple(),
     )
-    embed.add_field(name="`!setcodemanagerrole <@role>`", value="Sets the designated role allowed to manage codes (Admin only).", inline=False)
+    embed.add_field(name="`!setcodemanagerrole <@role>`", value="Sets the role allowed to create codes for this server (Server Admins only).", inline=False)
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
     embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
     embed.add_field(name="`!createroleriddle <@role> [#channel] \"Question\" \"Answer\"`", value="Creates a role reward riddle challenge.", inline=False)
-    embed.add_field(name="`!announcement [#channel] <message>`", value="Sends an announcement embed to a specified channel (Admin only).", inline=False)
-    embed.add_field(name="`!globalannouncement <message>`", value="Sends an announcement to all servers (Admin only).", inline=False)
-    embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes (Admin only).", inline=False)
-    embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist (Admin only).", inline=False)
+    embed.add_field(name="`!announcement [#channel] <message>`", value="Sends an announcement embed to a specified channel.", inline=False)
+    embed.add_field(name="`!globalannouncement <message>`", value="Sends an announcement to all connected servers (Bot Admin only).", inline=False)
+    embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes (Bot Admin only).", inline=False)
+    embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist (Bot Admin only).", inline=False)
     await ctx.send(embed=embed)
 
 
-# --- 7. CHAT LISTENER & GLOBAL ERROR LOGGING ---
+# --- 6. CHAT LISTENER & GLOBAL ERROR LOGGING ---
 @bot.event
 async def on_command_error(ctx, error):
     if hasattr(ctx.command, 'on_error'):
@@ -561,7 +573,7 @@ async def on_message(message):
                     await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}! The code is now closed.")
 
 
-# --- 8. RUN BOT WITH ASYNC RECONNECT LOOP ---
+# --- 7. RUN BOT WITH ASYNC RECONNECT LOOP ---
 async def main():
     token = os.getenv("DISCORD_TOKEN")
     if not token:
