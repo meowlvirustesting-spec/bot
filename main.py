@@ -150,7 +150,7 @@ async def process_code_creation(
     embed.description = (
         f"**Created by:** {creator.mention}\n\n"
         f"**USE CODE:** {clean_code}{reward_text}\n\n"
-        f"Type the full code in chat to claim!"
+        f"Type the full code in claim!"
     )
     embed.color = discord.Color.green()
     await message.edit(embed=embed)
@@ -195,7 +195,12 @@ async def setcodemanagerrole(ctx, role: discord.Role):
         pass
 
     server_manager_roles[ctx.guild.id] = role.id
-    await ctx.send(f"✅ Code Manager role for **{ctx.guild.name}** set to {role.mention}!", delete_after=5)
+    # Using AllowedMentions.none() ensures the role isn't pinged in chat
+    await ctx.send(
+        f"✅ Code Manager role for **{ctx.guild.name}** set to **{role.name}** (`ID: {role.id}`)!",
+        delete_after=5,
+        allowed_mentions=discord.AllowedMentions.none()
+    )
 
 
 @setcodemanagerrole.error
@@ -370,10 +375,11 @@ async def code_command_error(ctx, error):
     if isinstance(error, commands.CheckFailure):
         role_id = server_manager_roles.get(ctx.guild.id)
         role = ctx.guild.get_role(role_id) if role_id else None
-        role_text = role.mention if role else "a configured Code Manager role (or Server Admin permissions)"
+        role_text = f"**{role.name}**" if role else "a configured Code Manager role (or Server Admin permissions)"
         await ctx.send(
             f"❌ {ctx.author.mention}, you need {role_text} to use this command!",
             delete_after=5,
+            allowed_mentions=discord.AllowedMentions.none()
         )
 
 
@@ -487,7 +493,7 @@ async def announcement_error(ctx, error):
 async def cmds(ctx):
     role_id = server_manager_roles.get(ctx.guild.id)
     role = ctx.guild.get_role(role_id) if role_id else None
-    role_text = role.mention if role else "Configured Code Manager Role or Server Admin"
+    role_text = f"**{role.name}**" if role else "Configured Code Manager Role or Server Admin"
 
     embed = discord.Embed(
         title="🤖 Bot Commands List",
@@ -503,7 +509,7 @@ async def cmds(ctx):
     embed.add_field(name="`!globalannouncement <message>`", value="Sends an announcement to all connected servers (Bot Admin only).", inline=False)
     embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes (Bot Admin only).", inline=False)
     embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist (Bot Admin only).", inline=False)
-    await ctx.send(embed=embed)
+    await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 
 
 # --- 6. CHAT LISTENER & GLOBAL ERROR LOGGING ---
