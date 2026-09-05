@@ -14,7 +14,7 @@ BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Instant correct answers for ho
 # Global Bot Admins (Override permissions on any server)
 ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
 
-# Per-Server Configuration: Guild ID -> Role ID
+# Per-Server Configuration: Guild ID -> Set of Role IDs
 server_manager_roles = {}
 blacklisted_users = set()
 
@@ -82,9 +82,9 @@ def can_manage_codes():
         if isinstance(ctx.author, discord.Member):
             if ctx.author.guild_permissions.administrator:
                 return True
-            assigned_role_id = server_manager_roles.get(ctx.guild.id)
-            if assigned_role_id:
-                return any(role.id == assigned_role_id for role in ctx.author.roles)
+            assigned_role_ids = server_manager_roles.get(ctx.guild.id, set())
+            if assigned_role_ids:
+                return any(role.id in assigned_role_ids for role in ctx.author.roles)
         return False
     return commands.check(predicate)
 
@@ -188,17 +188,23 @@ async def process_riddle_creation(
 # --- 5. COMMANDS ---
 @bot.command()
 @is_server_admin()
-async def setcodemanagerrole(ctx, role: discord.Role):
+async def setcodemanagerrole(ctx, roles: commands.Greedy[discord.Role]):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
         pass
 
-    server_manager_roles[ctx.guild.id] = role.id
-    # Using AllowedMentions.none() ensures the role isn't pinged in chat
+    if not roles:
+        await ctx.send("❌ **Usage:** `!setcodemanagerrole @Role1 @Role2 ...`", delete_after=5)
+        return
+
+    # Store a set of role IDs for the guild
+    server_manager_roles[ctx.guild.id] = {role.id for role in roles}
+
+    role_names = ", ".join([f"**{role.name}** (`ID: {role.id}`)" for role in roles])
     await ctx.send(
-        f"✅ Code Manager role for **{ctx.guild.name}** set to **{role.name}** (`ID: {role.id}`)!",
-        delete_after=5,
+        f"✅ Code Manager roles for **{ctx.guild.name}** set to: {role_names}!",
+        delete_after=7,
         allowed_mentions=discord.AllowedMentions.none()
     )
 
@@ -211,9 +217,7 @@ async def setcodemanagerrole_error(ctx, error):
         pass
 
     if isinstance(error, commands.CheckFailure):
-        await ctx.send("❌ You need the **Manage Server** or **Administrator** permission to set the manager role!", delete_after=5)
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send("❌ **Usage:** `!setcodemanagerrole @Role`", delete_after=5)
+        await ctx.send("❌ You need the **Manage Server** or **Administrator** permission to set manager roles!", delete_after=5)
 
 
 @bot.command()
@@ -373,9 +377,14 @@ async def code_command_error(ctx, error):
         pass
 
     if isinstance(error, commands.CheckFailure):
-        role_id = server_manager_roles.get(ctx.guild.id)
-        role = ctx.guild.get_role(role_id) if role_id else None
-        role_text = f"**{role.name}**" if role else "a configured Code Manager role (or Server Admin permissions)"
+        role_ids = server_manager_roles.get(ctx.guild.id, set())
+        roles = [ctx.guild.get_role(rid) for rid in role_ids if ctx.guild.get_role(rid)]
+        
+        if roles:
+            role_text = " or ".join([f"**{r.name}**" for r in roles])
+        else:
+            role_text = "a configured Code Manager role (or Server Admin permissions)"
+
         await ctx.send(
             f"❌ {ctx.author.mention}, you need {role_text} to use this command!",
             delete_after=5,
@@ -491,16 +500,20 @@ async def announcement_error(ctx, error):
 @is_not_blacklisted()
 @can_manage_codes()
 async def cmds(ctx):
-    role_id = server_manager_roles.get(ctx.guild.id)
-    role = ctx.guild.get_role(role_id) if role_id else None
-    role_text = f"**{role.name}**" if role else "Configured Code Manager Role or Server Admin"
+    role_ids = server_manager_roles.get(ctx.guild.id, set())
+    roles = [ctx.guild.get_role(rid) for rid in role_ids if ctx.guild.get_role(rid)]
+    
+    if roles:
+        role_text = ", ".join([f"**{r.name}**" for r in roles])
+    else:
+        role_text = "Configured Code Manager Role(s) or Server Admin"
 
     embed = discord.Embed(
         title="🤖 Bot Commands List",
         description=f"Commands restricted to {role_text}:",
         color=discord.Color.purple(),
     )
-    embed.add_field(name="`!setcodemanagerrole <@role>`", value="Sets the role allowed to create codes for this server (Server Admins only).", inline=False)
+    embed.add_field(name="`!setcodemanagerrole <@role1> [@role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
     embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
