@@ -473,7 +473,7 @@ async def announcement(ctx, channel: discord.TextChannel | None = None, *, messa
         description=message if message.strip() else None,
         color=discord.Color.blue()
     )
-    embed.set_image(url=ctx.author.display_avatar.url)
+    embed.set_thumbnail(url=ctx.author.display_avatar.url)
 
     files_to_send = []
     if attachments:
