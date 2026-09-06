@@ -130,7 +130,7 @@ async def process_code_creation(
 
     async with target_channel.typing():
         for section in sections:
-            await asyncio.sleep(0.8)  # Speed adjusted from 2.5s to 0.8s
+            await asyncio.sleep(1.5)  # Speed adjusted from 2.5s to 0.8s
             if has_spaces:
                 displayed_text += section + " "
             else:
