@@ -130,7 +130,7 @@ async def process_code_creation(
 
     async with target_channel.typing():
         for section in sections:
-            await asyncio.sleep(2.5)
+            await asyncio.sleep(0.8)  # Speed adjusted from 2.5s to 0.8s
             if has_spaces:
                 displayed_text += section + " "
             else:
@@ -150,7 +150,7 @@ async def process_code_creation(
     embed.description = (
         f"**Created by:** {creator.mention}\n\n"
         f"**USE CODE:** {clean_code}{reward_text}\n\n"
-        f"Type the full code in claim!"
+        f"Type the full code to claim!"
     )
     embed.color = discord.Color.green()
     await message.edit(embed=embed)
@@ -198,7 +198,6 @@ async def setcodemanagerrole(ctx, roles: commands.Greedy[discord.Role]):
         await ctx.send("❌ **Usage:** `!setcodemanagerrole @Role1 @Role2 ...`", delete_after=5)
         return
 
-    # Store a set of role IDs for the guild
     server_manager_roles[ctx.guild.id] = {role.id for role in roles}
 
     role_names = ", ".join([f"**{role.name}** (`ID: {role.id}`)" for role in roles])
