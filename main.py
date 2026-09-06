@@ -470,21 +470,16 @@ async def announcement(ctx, channel: discord.TextChannel | None = None, *, messa
     target_channel = channel or ctx.channel
 
     embed = discord.Embed(
-        title="📢 Server Announcement",
         description=message if message.strip() else None,
         color=discord.Color.blue()
     )
-    embed.set_footer(text=f"Sent by {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
+    embed.set_image(url=ctx.author.display_avatar.url)
 
     files_to_send = []
     if attachments:
         for attachment in attachments:
             file = await attachment.to_file()
             files_to_send.append(file)
-            
-            # If the attachment is an image, set it as the embed image
-            if attachment.content_type and attachment.content_type.startswith("image/"):
-                embed.set_image(url=attachment.url)
 
     try:
         await ctx.message.delete()
