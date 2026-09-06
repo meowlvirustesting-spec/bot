@@ -110,11 +110,13 @@ async def process_code_creation(
     creator: discord.User | discord.Member,
     reward_role: discord.Role | None = None,
 ):
+    start_timestamp = time.time()
     active_codes[target_channel.id] = {
         "code": clean_code.lower(),
         "ready": False,
         "role_id": reward_role.id if reward_role else None,
         "type": "code",
+        "start_time": start_timestamp,
     }
 
     embed = discord.Embed(
@@ -130,7 +132,7 @@ async def process_code_creation(
 
     async with target_channel.typing():
         for section in sections:
-            await asyncio.sleep(1.5)  # Speed adjusted from 2.5s to 0.8s
+            await asyncio.sleep(0.8)
             if has_spaces:
                 displayed_text += section + " "
             else:
@@ -163,11 +165,13 @@ async def process_riddle_creation(
     creator: discord.User | discord.Member,
     reward_role: discord.Role | None = None,
 ):
+    start_timestamp = time.time()
     active_codes[target_channel.id] = {
         "code": answer.strip().lower(),
         "ready": True,
         "role_id": reward_role.id if reward_role else None,
         "type": "riddle",
+        "start_time": start_timestamp,
     }
 
     reward_text = f"\n**Reward:** {reward_role.mention}" if reward_role else ""
@@ -568,10 +572,15 @@ async def on_message(message):
                     )
                     return
 
+                # Calculate elapsed time in seconds
+                elapsed_seconds = round(time.time() - code_data.get("start_time", time.time()), 2)
+
                 role_id = code_data.get("role_id")
                 challenge_type = code_data.get("type", "code")
 
                 del active_codes[channel_id]
+
+                time_str = f" in **{elapsed_seconds} seconds**"
 
                 if role_id and isinstance(message.author, discord.Member):
                     role = message.guild.get_role(role_id)
@@ -579,16 +588,16 @@ async def on_message(message):
                         try:
                             await message.author.add_roles(role)
                             await message.channel.send(
-                                f"🎉 {message.author.mention} redeemed the {challenge_type} first and won the **{role.name}** role! The code is now closed."
+                                f"🎉 {message.author.mention} redeemed the {challenge_type} first{time_str} and won the **{role.name}** role! The code is now closed."
                             )
                         except discord.Forbidden:
                             await message.channel.send(
-                                f"{message.author.mention} Correct answer, but I lack permissions to grant the role!"
+                                f"{message.author.mention} Correct answer{time_str}, but I lack permissions to grant the role!"
                             )
                     else:
-                        await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}! The code is now closed.")
+                        await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}{time_str}! The code is now closed.")
                 else:
-                    await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}! The code is now closed.")
+                    await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}{time_str}! The code is now closed.")
 
 
 # --- 7. RUN BOT WITH ASYNC RECONNECT LOOP ---
