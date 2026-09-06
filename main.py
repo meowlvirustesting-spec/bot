@@ -110,13 +110,12 @@ async def process_code_creation(
     creator: discord.User | discord.Member,
     reward_role: discord.Role | None = None,
 ):
-    start_timestamp = time.time()
     active_codes[target_channel.id] = {
         "code": clean_code.lower(),
         "ready": False,
         "role_id": reward_role.id if reward_role else None,
         "type": "code",
-        "start_time": start_timestamp,
+        "start_time": None,
     }
 
     embed = discord.Embed(
@@ -145,7 +144,9 @@ async def process_code_creation(
             )
             await message.edit(embed=embed)
 
+    # Start timer ONLY after the animation is finished and code is ready to redeem
     active_codes[target_channel.id]["ready"] = True
+    active_codes[target_channel.id]["start_time"] = time.time()
 
     embed.title = "Role Code Created!" if reward_role else "Code Created!"
     reward_text = f"\n**Reward:** {reward_role.mention}" if reward_role else ""
@@ -572,8 +573,8 @@ async def on_message(message):
                     )
                     return
 
-                # Calculate elapsed time in seconds
-                elapsed_seconds = round(time.time() - code_data.get("start_time", time.time()), 2)
+                start_time = code_data.get("start_time") or time.time()
+                elapsed_seconds = round(time.time() - start_time, 2)
 
                 role_id = code_data.get("role_id")
                 challenge_type = code_data.get("type", "code")
