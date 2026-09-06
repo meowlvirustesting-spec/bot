@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import asyncio
 import threading
 import time
@@ -16,7 +17,32 @@ ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
 
 # Per-Server Configuration: Guild ID -> Set of Role IDs
 server_manager_roles = {}
-blacklisted_users = set()
+
+# --- PERSISTENT BLACKLIST LOGIC ---
+BLACKLIST_FILE = "blacklist.json"
+
+
+def load_blacklist() -> set[int]:
+    if os.path.exists(BLACKLIST_FILE):
+        try:
+            with open(BLACKLIST_FILE, "r") as f:
+                data = json.load(f)
+                return set(data)
+        except Exception as e:
+            print(f"Error loading blacklist file: {e}")
+            return set()
+    return set()
+
+
+def save_blacklist(blacklist_set: set[int]):
+    try:
+        with open(BLACKLIST_FILE, "w") as f:
+            json.dump(list(blacklist_set), f)
+    except Exception as e:
+        print(f"Error saving blacklist file: {e}")
+
+
+blacklisted_users = load_blacklist()
 
 # --- 1. KEEP-ALIVE WEB SERVER ---
 app = Flask("")
@@ -404,6 +430,7 @@ async def blacklist(ctx, user: discord.User | discord.Member):
         await ctx.send(f"⚠️ {user.mention} is already blacklisted.", delete_after=5)
         return
     blacklisted_users.add(user.id)
+    save_blacklist(blacklisted_users)
     await ctx.send(f"🚫 {user.mention} has been blacklisted from using the bot!")
 
 
@@ -415,6 +442,7 @@ async def unblacklist(ctx, user: discord.User | discord.Member):
         await ctx.send(f"⚠️ {user.mention} is not blacklisted.", delete_after=5)
         return
     blacklisted_users.remove(user.id)
+    save_blacklist(blacklisted_users)
     await ctx.send(f"✅ {user.mention} has been removed from the blacklist!")
 
 
@@ -429,72 +457,48 @@ async def blacklist_error(ctx, error):
 @is_not_blacklisted()
 @is_server_admin()
 async def announcement(ctx, channel: discord.TextChannel | None = None, *, message: str = ""):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
+    attachments = ctx.message.attachments
 
-    if not message.strip():
-        await ctx.send("❌ **Usage:** `!announcement [#channel] Your message here`", delete_after=5)
+    if not message.strip() and not attachments:
+        try:
+            await ctx.message.delete()
+        except (discord.Forbidden, discord.NotFound):
+            pass
+        await ctx.send("❌ **Usage:** `!announcement [#channel] Your message here` (attach images or videos to the message)", delete_after=5)
         return
 
     target_channel = channel or ctx.channel
 
     embed = discord.Embed(
         title="📢 Server Announcement",
-        description=message,
+        description=message if message.strip() else None,
         color=discord.Color.blue()
     )
     embed.set_footer(text=f"Sent by {ctx.author.display_name}", icon_url=ctx.author.display_avatar.url)
 
-    try:
-        await target_channel.send(embed=embed)
-        await ctx.send(f"✅ Announcement sent to {target_channel.mention}!", delete_after=5)
-    except discord.Forbidden:
-        await ctx.send(f"❌ I don't have permission to send messages in {target_channel.mention}.", delete_after=5)
+    files_to_send = []
+    if attachments:
+        for attachment in attachments:
+            file = await attachment.to_file()
+            files_to_send.append(file)
+            
+            # If the attachment is an image, set it as the embed image
+            if attachment.content_type and attachment.content_type.startswith("image/"):
+                embed.set_image(url=attachment.url)
 
-
-@bot.command()
-@is_not_blacklisted()
-@is_admin_or_owner()
-async def globalannouncement(ctx, *, message: str = ""):
     try:
         await ctx.message.delete()
     except (discord.Forbidden, discord.NotFound):
         pass
 
-    if not message.strip():
-        await ctx.send("❌ **Usage:** `!globalannouncement Your message here`", delete_after=5)
-        return
-
-    embed = discord.Embed(
-        title="🌐 Global Announcement",
-        description=message,
-        color=discord.Color.gold()
-    )
-    embed.set_footer(text="Sent by Bot Admin", icon_url=ctx.author.display_avatar.url)
-
-    sent_count = 0
-    for guild in bot.guilds:
-        target_channel = guild.system_channel
-        if not target_channel:
-            for ch in guild.text_channels:
-                if ch.permissions_for(guild.me).send_messages:
-                    target_channel = ch
-                    break
-
-        if target_channel:
-            try:
-                await target_channel.send(embed=embed)
-                sent_count += 1
-            except (discord.Forbidden, discord.HTTPException):
-                continue
-
-    await ctx.send(f"✅ Global announcement sent to {sent_count} server(s)!", delete_after=10)
+    try:
+        await target_channel.send(embed=embed, files=files_to_send)
+        await ctx.send(f"✅ Announcement sent to {target_channel.mention}!", delete_after=5)
+    except discord.Forbidden:
+        await ctx.send(f"❌ I don't have permission to send messages in {target_channel.mention}.", delete_after=5)
 
 
 @announcement.error
-@globalannouncement.error
 async def announcement_error(ctx, error):
     if isinstance(error, commands.CheckFailure):
         await ctx.send("❌ You do not have permission to use announcement commands!", delete_after=5)
@@ -522,8 +526,7 @@ async def cmds(ctx):
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
     embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
     embed.add_field(name="`!createroleriddle <@role> [#channel] \"Question\" \"Answer\"`", value="Creates a role reward riddle challenge.", inline=False)
-    embed.add_field(name="`!announcement [#channel] <message>`", value="Sends an announcement embed to a specified channel.", inline=False)
-    embed.add_field(name="`!globalannouncement <message>`", value="Sends an announcement to all connected servers (Bot Admin only).", inline=False)
+    embed.add_field(name="`!announcement [#channel] <message>`", value="Sends an announcement embed with image/video attachment support.", inline=False)
     embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes (Bot Admin only).", inline=False)
     embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist (Bot Admin only).", inline=False)
     await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
