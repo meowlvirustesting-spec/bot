@@ -228,8 +228,10 @@ async def process_riddle_creation(
 
 
 # --- 5. SLASH COMMANDS ---
-@bot.tree.command(name="generatedlc", description="Generates a random DLC code (Bot Admin Only)")
+@bot.tree.command(name="generatedlc", description="Generates a random DLC code and sets it as the active bypass code (Bot Admin Only)")
 async def generatedlc(interaction: discord.Interaction):
+    global active_bypass_code
+
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
         return
@@ -242,34 +244,37 @@ async def generatedlc(interaction: discord.Interaction):
     numbers = ''.join(random.choices(string.digits, k=4))
     dlc_code = f"BRADAR-{letters}-{numbers}"
 
-    await interaction.response.send_message(f"🎁 **Your Generated DLC Code:** `{dlc_code}`", ephemeral=True)
+    # Set as active bypass code automatically
+    active_bypass_code = dlc_code.lower()
+
+    await interaction.response.send_message(
+        f"🎁 **Generated DLC Code:** `{dlc_code}`\n✅ *This code has also been set as the active bypass code!*", 
+        ephemeral=True
+    )
 
 
-@bot.tree.command(name="setbypasscode", description="Sets a code that grants standalone code bypass on redemption (Bot Admin Only)")
-@app_commands.describe(code="The code users must type to obtain code bypass")
-async def setbypasscode(interaction: discord.Interaction, code: str):
-    global active_bypass_code
+@bot.tree.command(name="deletecodebypassperms", description="Removes code bypass permissions from a specified user or all holders (Bot Admin Only)")
+@app_commands.describe(user="The user to remove bypass permissions from (leave empty to clear all)")
+async def deletecodebypassperms(interaction: discord.Interaction, user: discord.User | discord.Member | None = None):
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
         return
 
-    active_bypass_code = code.strip().lower()
-    await interaction.response.send_message(f"✅ Standalone bypass code set to: `{code.strip()}`", ephemeral=True)
+    if user:
+        if user.id not in bypass_users:
+            await interaction.response.send_message(f"⚠️ {user.mention} does not currently have active code bypass permissions.", ephemeral=True)
+            return
+        
+        bypass_users.remove(user.id)
+        await interaction.response.send_message(f"🛑 Successfully removed code bypass permissions from {user.mention}!", ephemeral=True)
+    else:
+        if not bypass_users:
+            await interaction.response.send_message("⚠️ No users currently have code bypass permissions.", ephemeral=True)
+            return
 
-
-@bot.tree.command(name="deletecodebypassperms", description="Removes code bypass permissions from all active holders (Bot Admin Only)")
-async def deletecodebypassperms(interaction: discord.Interaction):
-    if interaction.user.id not in ADMIN_USER_IDS:
-        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
-        return
-
-    if not bypass_users:
-        await interaction.response.send_message("⚠️ No users currently have code bypass permissions.", ephemeral=True)
-        return
-
-    count = len(bypass_users)
-    bypass_users.clear()
-    await interaction.response.send_message(f"🛑 Successfully removed code bypass permissions from {count} user(s)!", ephemeral=True)
+        count = len(bypass_users)
+        bypass_users.clear()
+        await interaction.response.send_message(f"🛑 Successfully removed code bypass permissions from all {count} user(s)!", ephemeral=True)
 
 
 # --- 6. COMMANDS ---
@@ -572,9 +577,8 @@ async def cmds(ctx):
         description=f"Commands restricted to {role_text}:",
         color=discord.Color.purple(),
     )
-    embed.add_field(name="`/generatedlc`", value="Generates a random DLC code in `BRADAR-XXXX-0000` format (Bot Admin only).", inline=False)
-    embed.add_field(name="`/setbypasscode <code>`", value="Sets a code that awards standalone code bypass when typed (Bot Admin only).", inline=False)
-    embed.add_field(name="`/deletecodebypassperms`", value="Removes code bypass permissions from active holders (Bot Admin only).", inline=False)
+    embed.add_field(name="`/generatedlc`", value="Generates a random DLC code and sets it as the active bypass code (Bot Admin only).", inline=False)
+    embed.add_field(name="`/deletecodebypassperms [@user]`", value="Removes code bypass permissions from a user or clears all users if left empty (Bot Admin only).", inline=False)
     embed.add_field(name="`!setcodemanagerrole <@role1> [@role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
