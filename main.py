@@ -20,7 +20,8 @@ ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
 
 # Dynamic In-Memory States
 active_bypass_code = None  # Holds the custom bypass code set by an admin
-bypass_users = set()       # Set of user IDs who redeemed the standalone bypass code
+active_bypass_max_uses = 1 # Holds the configured max uses for the current active bypass code
+bypass_users = {}          # Dictionary mapping User ID -> Remaining Bypass Uses
 
 # Per-Server Configuration: Guild ID -> Set of Role IDs
 server_manager_roles = {}
@@ -228,9 +229,10 @@ async def process_riddle_creation(
 
 
 # --- 5. SLASH COMMANDS ---
-@bot.tree.command(name="generatedlc", description="Generates a random DLC code and sets it as the active bypass code (Bot Admin Only)")
-async def generatedlc(interaction: discord.Interaction):
-    global active_bypass_code
+@bot.tree.command(name="generatedlc", description="Generates a random DLC code with configured uses (Bot Admin Only)")
+@app_commands.describe(uses="The number of times this bypass code can be used (e.g. 1, 5, 10)")
+async def generatedlc(interaction: discord.Interaction, uses: int = 1):
+    global active_bypass_code, active_bypass_max_uses
 
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
@@ -240,15 +242,22 @@ async def generatedlc(interaction: discord.Interaction):
         await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
         return
 
+    if uses < 1:
+        await interaction.response.send_message("❌ Amount of uses must be at least 1!", ephemeral=True)
+        return
+
     letters = ''.join(random.choices(string.ascii_uppercase, k=4))
     numbers = ''.join(random.choices(string.digits, k=4))
     dlc_code = f"BRADAR-{letters}-{numbers}"
 
-    # Set as active bypass code automatically
+    # Set active bypass code and its max use count
     active_bypass_code = dlc_code.lower()
+    active_bypass_max_uses = uses
+
+    use_text = "1 use" if uses == 1 else f"{uses} uses"
 
     await interaction.response.send_message(
-        f"🎁 **Generated DLC Code:** `{dlc_code}`\n✅ *This code has also been set as the active bypass code!*", 
+        f"🎁 **Generated DLC Code:** `{dlc_code}`\n⚙️ **Allowed Uses:** {use_text}\n✅ *This code is now active!*", 
         ephemeral=True
     )
 
@@ -265,7 +274,7 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
             await interaction.response.send_message(f"⚠️ {user.mention} does not currently have active code bypass permissions.", ephemeral=True)
             return
         
-        bypass_users.remove(user.id)
+        del bypass_users[user.id]
         await interaction.response.send_message(f"🛑 Successfully removed code bypass permissions from {user.mention}!", ephemeral=True)
     else:
         if not bypass_users:
@@ -577,7 +586,7 @@ async def cmds(ctx):
         description=f"Commands restricted to {role_text}:",
         color=discord.Color.purple(),
     )
-    embed.add_field(name="`/generatedlc`", value="Generates a random DLC code and sets it as the active bypass code (Bot Admin only).", inline=False)
+    embed.add_field(name="`/generatedlc <uses>`", value="Generates a random DLC code with configured usage limits and sets it as active (Bot Admin only).", inline=False)
     embed.add_field(name="`/deletecodebypassperms [@user]`", value="Removes code bypass permissions from a user or clears all users if left empty (Bot Admin only).", inline=False)
     embed.add_field(name="`!setcodemanagerrole <@role1> [@role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
@@ -607,7 +616,7 @@ async def on_command_error(ctx, error):
 
 @bot.event
 async def on_message(message):
-    global active_bypass_code
+    global active_bypass_code, active_bypass_max_uses
     if message.author.bot:
         return
 
@@ -623,13 +632,20 @@ async def on_message(message):
 
     # Standalone Bypass Code Redemption Check
     if active_bypass_code and msg_clean == active_bypass_code:
-        bypass_users.add(message.author.id)
+        # Give user configured number of bypass uses
+        bypass_users[message.author.id] = active_bypass_max_uses
+        
+        # Deactivate the single-claim code after it's redeemed once
+        active_bypass_code = None 
+
         try:
             await message.delete()
         except (discord.Forbidden, discord.NotFound):
             pass
+
+        use_text = "1 use" if active_bypass_max_uses == 1 else f"{active_bypass_max_uses} uses"
         await message.channel.send(
-            f"🔓 {message.author.mention} redeemed the secret code and earned **Code Bypass**!",
+            f"🔓 {message.author.mention} redeemed the secret code and earned **Code Bypass** for {use_text}!",
             delete_after=10
         )
         return
@@ -642,15 +658,21 @@ async def on_message(message):
         if code_data["ready"]:
             target_code = code_data["code"]
             
-            # Check bypass status (via role OR redeemed standalone bypass)
+            # Check bypass status
             has_role_bypass = False
             if isinstance(message.author, discord.Member):
                 has_role_bypass = any(role.name == BYPASS_ROLE_NAME for role in message.author.roles)
 
-            has_standalone_bypass = message.author.id in bypass_users
+            has_standalone_bypass = message.author.id in bypass_users and bypass_users[message.author.id] > 0
             has_bypass = has_role_bypass or has_standalone_bypass
 
             if msg_clean == target_code.lower() or has_bypass:
+                # Deduct one use if claiming using standalone DLC bypass
+                if not (msg_clean == target_code.lower()) and has_standalone_bypass and not has_role_bypass:
+                    bypass_users[message.author.id] -= 1
+                    if bypass_users[message.author.id] <= 0:
+                        del bypass_users[message.author.id]
+
                 start_time = code_data.get("start_time") or time.time()
                 elapsed_seconds = round(time.time() - start_time, 2)
 
