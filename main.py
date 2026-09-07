@@ -208,9 +208,12 @@ async def process_code_creation(
     sections: list[str],
     creator: discord.User | discord.Member,
     reward_role: discord.Role | None = None,
+    random_digits: str | None = None
 ):
+    full_solution = f"{clean_code} {random_digits}".strip() if random_digits else clean_code
+
     active_codes[target_channel.id] = {
-        "code": clean_code.lower(),
+        "code": full_solution.lower(),
         "ready": False,
         "role_id": reward_role.id if reward_role else None,
         "type": "code",
@@ -243,16 +246,29 @@ async def process_code_creation(
             )
             await message.edit(embed=embed)
 
+    await asyncio.sleep(2.5)
+
+    if random_digits:
+        embed.add_field(
+            name="🔢 Extra Security Digits",
+            value=f"**{random_digits}**",
+            inline=False
+        )
+        embed.description = (
+            f"**Created by:** {creator.mention}\n\n"
+            f"**USE CODE:** {clean_code}\n\n"
+            f"*Type the base code followed by the security digits to solve!*"
+        )
+        await message.edit(embed=embed)
+
     active_codes[target_channel.id]["ready"] = True
     active_codes[target_channel.id]["start_time"] = time.time()
 
     embed.title = "Role Code Created!" if reward_role else "Code Created!"
     reward_text = f"\n**Reward:** {reward_role.mention}" if reward_role else ""
-    embed.description = (
-        f"**Created by:** {creator.mention}\n\n"
-        f"**USE CODE:** {clean_code}{reward_text}\n\n"
-        f"Type the full code to claim!"
-    )
+    if reward_text and not embed.description.endswith(reward_text):
+        embed.description += reward_text
+
     embed.color = discord.Color.green()
     await message.edit(embed=embed)
 
@@ -322,7 +338,6 @@ async def announcement_slash(
         file_to_send = await media.to_file()
         content_type = media.content_type or ""
         
-        # Images/GIFs display directly inside the embed. Videos attach directly alongside.
         if content_type.startswith("image/"):
             embed.set_image(url=f"attachment://{media.filename}")
 
@@ -375,7 +390,7 @@ async def setcodemanagerrole_slash(
 @bot.tree.command(name="createcode", description="Creates a standard or role-reward code embed in a channel.")
 @app_commands.describe(
     code="The text code for users to type",
-    include_numbers="Set to True to append a random 4-digit number to the code",
+    include_numbers="Set to True to add a random 4-digit number in a separate embed section",
     role="Optional reward role to assign when claimed",
     channel="The channel to display the code in (defaults to current channel)"
 )
@@ -418,15 +433,22 @@ async def createcode_slash(
         await interaction.response.send_message("❌ Code cannot be empty!", ephemeral=True)
         return
 
+    random_digits = None
     if include_numbers:
         random_digits = "".join(random.choices(string.digits, k=4))
-        clean_code = f"{clean_code}-{random_digits}"
 
     reward_msg = f" with reward {role.mention}" if role else ""
     await interaction.response.send_message(f"✅ Code creation started in {target_channel.mention}{reward_msg}!", ephemeral=True)
 
     sections = split_phrase(clean_code)
-    await process_code_creation(target_channel, clean_code, sections, interaction.user, reward_role=role)
+    await process_code_creation(
+        target_channel, 
+        clean_code, 
+        sections, 
+        interaction.user, 
+        reward_role=role, 
+        random_digits=random_digits
+    )
 
 
 @bot.tree.command(name="createriddle", description="Creates a standard or role-reward riddle challenge.")
@@ -657,9 +679,7 @@ async def on_message(message):
 
     msg_clean = message.content.strip().lower()
 
-    # Standalone Bypass Code Redemption Check
     if active_bypass_code and msg_clean == active_bypass_code:
-        # Silently ignore if creator posts their own DLC code
         if message.author.id == active_bypass_creator_id:
             return
 
