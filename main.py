@@ -21,6 +21,7 @@ ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
 
 # Dynamic In-Memory States
 active_bypass_code = None        # Holds the custom bypass code set by an admin
+active_bypass_creator_id = None  # Holds the user ID of the admin who created the active DLC code
 active_bypass_max_claims = 1     # Total number of unique users allowed to redeem the DLC code
 redeemed_users = set()           # Set of user IDs who have already claimed the current active DLC code
 bypass_users = set()             # Set of User IDs with active permanent bypass perms until deleted
@@ -236,7 +237,7 @@ async def process_riddle_creation(
     max_claims="Total number of people who can redeem this DLC code (default: 1)"
 )
 async def generatedlc(interaction: discord.Interaction, max_claims: int = 1):
-    global active_bypass_code, active_bypass_max_claims, redeemed_users
+    global active_bypass_code, active_bypass_creator_id, active_bypass_max_claims, redeemed_users
 
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
@@ -254,8 +255,9 @@ async def generatedlc(interaction: discord.Interaction, max_claims: int = 1):
     numbers = ''.join(random.choices(string.digits, k=4))
     dlc_code = f"BRADAR-{letters}-{numbers}"
 
-    # Reset redemption tracking for the new DLC code
+    # Reset redemption tracking for the new DLC code and set creator ID
     active_bypass_code = dlc_code.lower()
+    active_bypass_creator_id = interaction.user.id
     active_bypass_max_claims = max_claims
     redeemed_users.clear()
 
@@ -577,7 +579,7 @@ async def on_command_error(ctx, error):
 
 @bot.event
 async def on_message(message):
-    global active_bypass_code, active_bypass_max_claims
+    global active_bypass_code, active_bypass_creator_id, active_bypass_max_claims
     if message.author.bot:
         return
 
@@ -593,6 +595,14 @@ async def on_message(message):
 
     # Standalone Bypass Code Redemption Check
     if active_bypass_code and msg_clean == active_bypass_code:
+        # Prevent creator from claiming their own generated DLC code
+        if message.author.id == active_bypass_creator_id:
+            await message.channel.send(
+                f"❌ {message.author.mention}, you generated this DLC code so you cannot redeem it!",
+                delete_after=7
+            )
+            return
+
         # Check if user already claimed this specific DLC code
         if message.author.id in redeemed_users:
             await message.channel.send(
@@ -605,10 +615,10 @@ async def on_message(message):
         redeemed_users.add(message.author.id)
         bypass_users.add(message.author.id)
 
-        # Embed showing the image when redeeming the DLC code
+        # Embed showing custom confirmation message when redeeming DLC code
         embed = discord.Embed(
-            title="🎁 DLC Code Redeemed!",
-            description=f"🔓 {message.author.mention} redeemed the secret code and earned permanent **Code Bypass** until deleted by an admin!",
+            title="🎁 You have successfully redeemed a DLC for Code Bypass!",
+            description=f"🔓 {message.author.mention}, You have successfully redeemed a DLC for Code Bypass!",
             color=discord.Color.green()
         )
         embed.set_image(url=DLC_IMAGE_URL)
@@ -618,6 +628,7 @@ async def on_message(message):
         # Deactivate code if max unique claims limit reached
         if len(redeemed_users) >= active_bypass_max_claims:
             active_bypass_code = None
+            active_bypass_creator_id = None
 
         return
 
