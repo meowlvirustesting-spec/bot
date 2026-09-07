@@ -289,6 +289,49 @@ async def process_riddle_creation(
 
 
 # --- SLASH COMMANDS ---
+@bot.tree.command(name="announcement", description="Sends an announcement embed with image/video inside the embed (Bot Admin Only)")
+@app_commands.describe(
+    message="The main body text of the announcement",
+    media="Optional image or video file to embed directly inside the message",
+    channel="The channel to post the announcement in (defaults to current channel)"
+)
+async def announcement_slash(
+    interaction: discord.Interaction,
+    message: str,
+    media: discord.Attachment | None = None,
+    channel: discord.TextChannel | None = None
+):
+    if interaction.user.id not in ADMIN_USER_IDS:
+        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
+        return
+
+    if interaction.user.id in blacklisted_users:
+        await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
+        return
+
+    target_channel = channel or interaction.channel
+
+    embed = discord.Embed(
+        description=message,
+        color=discord.Color.blue()
+    )
+    embed.set_thumbnail(url=interaction.user.display_avatar.url)
+
+    file_to_send = None
+    if media:
+        file_to_send = await media.to_file()
+        embed.set_image(url=f"attachment://{media.filename}")
+
+    try:
+        if file_to_send:
+            await target_channel.send(embed=embed, file=file_to_send)
+        else:
+            await target_channel.send(embed=embed)
+        await interaction.response.send_message(f"✅ Announcement sent to {target_channel.mention}!", ephemeral=True)
+    except discord.Forbidden:
+        await interaction.response.send_message(f"❌ I don't have permission to send messages in {target_channel.mention}.", ephemeral=True)
+
+
 @bot.tree.command(name="setcodemanagerrole", description="Sets role(s) allowed to create codes for this server (Server Admin Only).")
 @app_commands.describe(
     role1="Primary role allowed to create codes",
@@ -546,43 +589,6 @@ async def blacklist_error(ctx, error):
 
 @bot.command()
 @is_not_blacklisted()
-@is_server_admin()
-async def announcement(ctx, channel: discord.TextChannel | None = None, *, message: str = ""):
-    attachments = ctx.message.attachments
-
-    if not message.strip() and not attachments:
-        await ctx.send("❌ **Usage:** `!announcement [#channel] Your message here` (attach images or videos to the message)", delete_after=5)
-        return
-
-    target_channel = channel or ctx.channel
-
-    embed = discord.Embed(
-        description=message if message.strip() else None,
-        color=discord.Color.blue()
-    )
-    embed.set_thumbnail(url=ctx.author.display_avatar.url)
-
-    files_to_send = []
-    if attachments:
-        for attachment in attachments:
-            file = await attachment.to_file()
-            files_to_send.append(file)
-
-    try:
-        await target_channel.send(embed=embed, files=files_to_send)
-        await ctx.send(f"✅ Announcement sent to {target_channel.mention}!", delete_after=5)
-    except discord.Forbidden:
-        await ctx.send(f"❌ I don't have permission to send messages in {target_channel.mention}.", delete_after=5)
-
-
-@announcement.error
-async def announcement_error(ctx, error):
-    if isinstance(error, commands.CheckFailure):
-        await ctx.send("❌ You do not have permission to use announcement commands!", delete_after=5)
-
-
-@bot.command()
-@is_not_blacklisted()
 @can_manage_codes()
 async def cmds(ctx):
     role_ids = server_manager_roles.get(ctx.guild.id, set())
@@ -604,7 +610,7 @@ async def cmds(ctx):
     embed.add_field(name="`/givecodebypass <@user>`", value="Grants code bypass permissions directly to a user (Bot Admin only).", inline=False)
     embed.add_field(name="`/generatedlc [max_claims]`", value="Generates a random DLC code with configured max claims (Bot Admin only).", inline=False)
     embed.add_field(name="`/deletecodebypassperms [@user]`", value="Removes code bypass permissions from a user or clears all users if left empty (Bot Admin only).", inline=False)
-    embed.add_field(name="`!announcement [#channel] <message>`", value="Sends an announcement embed with image/video attachment support.", inline=False)
+    embed.add_field(name="`/announcement <message> [media] [channel]`", value="Sends an announcement embed with direct image/video support inside the embed (Bot Admin only).", inline=False)
     embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes (Bot Admin only).", inline=False)
     embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist (Bot Admin only).", inline=False)
     await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
@@ -643,11 +649,8 @@ async def on_message(message):
 
     # Standalone Bypass Code Redemption Check
     if active_bypass_code and msg_clean == active_bypass_code:
+        # Silently ignore if creator posts their own DLC code
         if message.author.id == active_bypass_creator_id:
-            await message.channel.send(
-                f"❌ {message.author.mention}, you generated this DLC code so you cannot redeem it!",
-                delete_after=7
-            )
             return
 
         if message.author.id in redeemed_users:
