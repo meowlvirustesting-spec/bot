@@ -24,26 +24,22 @@ active_bypass_code = None        # Holds the custom bypass code set by an admin
 active_bypass_creator_id = None  # Holds the user ID of the admin who created the active DLC code
 active_bypass_max_claims = 1     # Total number of unique users allowed to redeem the DLC code
 redeemed_users = set()           # Set of user IDs who have already claimed the current active DLC code
-bypass_users = set()             # Set of User IDs with active permanent bypass perms until deleted
 
-# Per-Server Configuration: Guild ID -> Set of Role IDs
-server_manager_roles = {}
-
-# --- PERSISTENT BLACKLIST LOGIC ---
+# --- PERSISTENT FILE STORAGE LOGIC ---
 BLACKLIST_FILE = "blacklist.json"
+MANAGERS_FILE = "server_managers.json"
+BYPASS_FILE = "bypass_users.json"
 
 
+# 1. Blacklist persistence
 def load_blacklist() -> set[int]:
     if os.path.exists(BLACKLIST_FILE):
         try:
             with open(BLACKLIST_FILE, "r") as f:
-                data = json.load(f)
-                return set(data)
+                return set(json.load(f))
         except Exception as e:
             print(f"Error loading blacklist file: {e}")
-            return set()
     return set()
-
 
 def save_blacklist(blacklist_set: set[int]):
     try:
@@ -53,9 +49,52 @@ def save_blacklist(blacklist_set: set[int]):
         print(f"Error saving blacklist file: {e}")
 
 
-blacklisted_users = load_blacklist()
+# 2. Server Code Manager Roles persistence (Guild ID -> Set of Role IDs)
+def load_manager_roles() -> dict[int, set[int]]:
+    if os.path.exists(MANAGERS_FILE):
+        try:
+            with open(MANAGERS_FILE, "r") as f:
+                data = json.load(f)
+                # Convert keys (guild IDs) and role list values back into ints and sets
+                return {int(guild_id): set(role_ids) for guild_id, role_ids in data.items()}
+        except Exception as e:
+            print(f"Error loading manager roles file: {e}")
+    return {}
 
-# --- 1. KEEP-ALIVE WEB SERVER ---
+def save_manager_roles(managers_dict: dict[int, set[int]]):
+    try:
+        # Convert keys to strings and sets to lists for JSON serialization
+        serializable_data = {str(k): list(v) for k, v in managers_dict.items()}
+        with open(MANAGERS_FILE, "w") as f:
+            json.dump(serializable_data, f)
+    except Exception as e:
+        print(f"Error saving manager roles file: {e}")
+
+
+# 3. Code Bypass Users persistence
+def load_bypass_users() -> set[int]:
+    if os.path.exists(BYPASS_FILE):
+        try:
+            with open(BYPASS_FILE, "r") as f:
+                return set(json.load(f))
+        except Exception as e:
+            print(f"Error loading bypass users file: {e}")
+    return set()
+
+def save_bypass_users(bypass_set: set[int]):
+    try:
+        with open(BYPASS_FILE, "w") as f:
+            json.dump(list(bypass_set), f)
+    except Exception as e:
+        print(f"Error saving bypass users file: {e}")
+
+
+# Initialize persistent variables
+blacklisted_users = load_blacklist()
+server_manager_roles = load_manager_roles()
+bypass_users = load_bypass_users()
+
+# --- KEEP-ALIVE WEB SERVER ---
 app = Flask("")
 
 
@@ -75,7 +114,7 @@ def keep_alive():
     t.start()
 
 
-# --- 2. BOT CONFIGURATION ---
+# --- BOT CONFIGURATION ---
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -151,7 +190,7 @@ def user_can_manage_codes(member: discord.Member | discord.User, guild: discord.
     return False
 
 
-# --- 3. DYNAMIC WORD & CHUNK SPLITTING ---
+# --- DYNAMIC WORD & CHUNK SPLITTING ---
 def split_phrase(text: str) -> list[str]:
     if " " in text:
         return text.split()
@@ -164,7 +203,7 @@ def split_phrase(text: str) -> list[str]:
     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
 
-# --- 4. CODE & RIDDLE CREATION HELPERS ---
+# --- CODE & RIDDLE CREATION HELPERS ---
 async def process_code_creation(
     target_channel: discord.TextChannel,
     clean_code: str,
@@ -251,7 +290,7 @@ async def process_riddle_creation(
     await target_channel.send(embed=embed)
 
 
-# --- 5. SLASH COMMANDS ---
+# --- SLASH COMMANDS ---
 @bot.tree.command(name="setcodemanagerrole", description="Sets role(s) allowed to create codes for this server (Server Admin Only).")
 @app_commands.describe(
     role1="Primary role allowed to create codes",
@@ -277,7 +316,10 @@ async def setcodemanagerrole_slash(
         return
 
     roles_list = [r for r in [role1, role2, role3, role4, role5] if r is not None]
+    
+    # Save to memory AND persist to json file
     server_manager_roles[interaction.guild.id] = {role.id for role in roles_list}
+    save_manager_roles(server_manager_roles)
 
     role_names = ", ".join([f"**{role.name}** (`ID: {role.id}`)" for role in roles_list])
     await interaction.response.send_message(
@@ -439,6 +481,7 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
             return
         
         bypass_users.remove(user.id)
+        save_bypass_users(bypass_users)
         await interaction.response.send_message(f"🛑 Successfully removed code bypass permissions from {user.mention}!", ephemeral=True)
     else:
         if not bypass_users:
@@ -447,10 +490,11 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
 
         count = len(bypass_users)
         bypass_users.clear()
+        save_bypass_users(bypass_users)
         await interaction.response.send_message(f"🛑 Successfully removed code bypass permissions from all {count} user(s)!", ephemeral=True)
 
 
-# --- 6. COMMANDS ---
+# --- PREFIX COMMANDS ---
 @bot.command()
 @is_not_blacklisted()
 @is_admin_or_owner()
@@ -547,7 +591,7 @@ async def cmds(ctx):
     await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 
 
-# --- 7. CHAT LISTENER & GLOBAL ERROR LOGGING ---
+# --- CHAT LISTENER & GLOBAL ERROR LOGGING ---
 @bot.event
 async def on_command_error(ctx, error):
     if hasattr(ctx.command, 'on_error'):
@@ -595,7 +639,10 @@ async def on_message(message):
             return
 
         redeemed_users.add(message.author.id)
+        
+        # Save bypass permissions to memory AND persist to JSON file
         bypass_users.add(message.author.id)
+        save_bypass_users(bypass_users)
 
         embed = discord.Embed(
             title="🎁 You have successfully redeemed a DLC for Code Bypass!",
@@ -656,7 +703,7 @@ async def on_message(message):
                     await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}{time_str}! The code is now closed.")
 
 
-# --- 8. RUN BOT WITH ASYNC RECONNECT LOOP ---
+# --- RUN BOT WITH ASYNC RECONNECT LOOP ---
 async def main():
     token = os.getenv("DISCORD_TOKEN")
     if not token:
