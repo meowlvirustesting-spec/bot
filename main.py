@@ -117,6 +117,14 @@ def is_server_admin():
     return commands.check(predicate)
 
 
+def user_is_server_admin(member: discord.Member | discord.User) -> bool:
+    if member.id in ADMIN_USER_IDS:
+        return True
+    if isinstance(member, discord.Member):
+        return member.guild_permissions.manage_guild or member.guild_permissions.administrator
+    return False
+
+
 def can_manage_codes():
     async def predicate(ctx):
         if ctx.author.id in ADMIN_USER_IDS:
@@ -244,14 +252,50 @@ async def process_riddle_creation(
 
 
 # --- 5. SLASH COMMANDS ---
-@bot.tree.command(name="createcode", description="Creates a standard code embed in a channel.")
+@bot.tree.command(name="setcodemanagerrole", description="Sets role(s) allowed to create codes for this server (Server Admin Only).")
+@app_commands.describe(
+    role1="Primary role allowed to create codes",
+    role2="Additional role allowed to create codes (optional)",
+    role3="Additional role allowed to create codes (optional)",
+    role4="Additional role allowed to create codes (optional)",
+    role5="Additional role allowed to create codes (optional)"
+)
+async def setcodemanagerrole_slash(
+    interaction: discord.Interaction,
+    role1: discord.Role,
+    role2: discord.Role | None = None,
+    role3: discord.Role | None = None,
+    role4: discord.Role | None = None,
+    role5: discord.Role | None = None
+):
+    if not interaction.guild:
+        await interaction.response.send_message("❌ This command can only be used inside a server!", ephemeral=True)
+        return
+
+    if not user_is_server_admin(interaction.user):
+        await interaction.response.send_message("❌ You need the **Manage Server** or **Administrator** permission to set manager roles!", ephemeral=True)
+        return
+
+    roles_list = [r for r in [role1, role2, role3, role4, role5] if r is not None]
+    server_manager_roles[interaction.guild.id] = {role.id for role in roles_list}
+
+    role_names = ", ".join([f"**{role.name}** (`ID: {role.id}`)" for role in roles_list])
+    await interaction.response.send_message(
+        f"✅ Code Manager roles for **{interaction.guild.name}** set to: {role_names}!",
+        ephemeral=True
+    )
+
+
+@bot.tree.command(name="createcode", description="Creates a standard or role-reward code embed in a channel.")
 @app_commands.describe(
     code="The text code for users to type",
+    role="Optional reward role to assign when claimed",
     channel="The channel to display the code in (defaults to current channel)"
 )
 async def createcode_slash(
     interaction: discord.Interaction, 
     code: str, 
+    role: discord.Role | None = None,
     channel: discord.TextChannel | None = None
 ):
     if interaction.user.id in blacklisted_users:
@@ -262,6 +306,23 @@ async def createcode_slash(
         await interaction.response.send_message("❌ You do not have permission to create codes!", ephemeral=True)
         return
 
+    if role and interaction.guild:
+        member = interaction.user
+        if isinstance(member, discord.Member):
+            if role.position >= member.top_role.position and member.id not in ADMIN_USER_IDS:
+                await interaction.response.send_message(
+                    f"❌ You cannot create a code for {role.mention} because it is higher than or equal to your role!",
+                    ephemeral=True
+                )
+                return
+
+        if role.position >= interaction.guild.me.top_role.position:
+            await interaction.response.send_message(
+                f"❌ I cannot assign {role.mention} because it is higher than my highest role!",
+                ephemeral=True
+            )
+            return
+
     target_channel = channel or interaction.channel
     clean_code = code.strip()
 
@@ -269,10 +330,11 @@ async def createcode_slash(
         await interaction.response.send_message("❌ Code cannot be empty!", ephemeral=True)
         return
 
-    await interaction.response.send_message(f"✅ Code creation started in {target_channel.mention}!", ephemeral=True)
+    reward_msg = f" with reward {role.mention}" if role else ""
+    await interaction.response.send_message(f"✅ Code creation started in {target_channel.mention}{reward_msg}!", ephemeral=True)
 
     sections = split_phrase(clean_code)
-    await process_code_creation(target_channel, clean_code, sections, interaction.user)
+    await process_code_creation(target_channel, clean_code, sections, interaction.user, reward_role=role)
 
 
 @bot.tree.command(name="generatedlc", description="Generates a random DLC code with configured max claims (Bot Admin Only)")
@@ -336,66 +398,6 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
 
 
 # --- 6. COMMANDS ---
-@bot.command()
-@is_server_admin()
-async def setcodemanagerrole(ctx, roles: commands.Greedy[discord.Role]):
-    if not roles:
-        await ctx.send("❌ **Usage:** `!setcodemanagerrole @Role1 @Role2 ...`", delete_after=5)
-        return
-
-    server_manager_roles[ctx.guild.id] = {role.id for role in roles}
-
-    role_names = ", ".join([f"**{role.name}** (`ID: {role.id}`)" for role in roles])
-    await ctx.send(
-        f"✅ Code Manager roles for **{ctx.guild.name}** set to: {role_names}!",
-        delete_after=7,
-        allowed_mentions=discord.AllowedMentions.none()
-    )
-
-
-@setcodemanagerrole.error
-async def setcodemanagerrole_error(ctx, error):
-    if isinstance(error, commands.CheckFailure):
-        await ctx.send("❌ You need the **Manage Server** or **Administrator** permission to set manager roles!", delete_after=5)
-
-
-@bot.command()
-@is_not_blacklisted()
-@can_manage_codes()
-async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
-    if role.position >= ctx.author.top_role.position and ctx.author.id not in ADMIN_USER_IDS:
-        await ctx.send(
-            f"❌ {ctx.author.mention}, you cannot create a code for {role.mention} because it is higher than or equal to your role!",
-            delete_after=5,
-        )
-        return
-
-    if role.position >= ctx.guild.me.top_role.position:
-        await ctx.send(
-            f"❌ {ctx.author.mention}, I cannot assign {role.mention} because it is higher than my highest role!",
-            delete_after=5,
-        )
-        return
-
-    if not args.strip():
-        await ctx.send("❌ **Usage:** `!createrolecode @Role [#channel] bananagood123`", delete_after=5)
-        return
-
-    target_channel = ctx.channel
-    clean_code = args.strip()
-
-    if ctx.message.channel_mentions:
-        target_channel = ctx.message.channel_mentions[0]
-        clean_code = re.sub(r"<#\d+>", "", clean_code).strip()
-
-    if not clean_code:
-        await ctx.send("❌ **Usage:** `!createrolecode @Role [#channel] bananagood123`", delete_after=5)
-        return
-
-    sections = split_phrase(clean_code)
-    await process_code_creation(target_channel, clean_code, sections, ctx.author, reward_role=role)
-
-
 @bot.command()
 @is_not_blacklisted()
 @can_manage_codes()
@@ -462,7 +464,6 @@ async def createroleriddle(ctx, role: discord.Role, *, rest: str = ""):
     await process_riddle_creation(target_channel, question, answer, ctx.author, reward_role=role)
 
 
-@createrolecode.error
 @createriddle.error
 @createroleriddle.error
 async def code_command_error(ctx, error):
@@ -567,11 +568,10 @@ async def cmds(ctx):
         description=f"Commands restricted to {role_text}:",
         color=discord.Color.purple(),
     )
-    embed.add_field(name="`/createcode <code> [channel]`", value="Creates a standard code embed via slash command.", inline=False)
+    embed.add_field(name="`/createcode <code> [role] [channel]`", value="Creates a standard or role-reward code embed via slash command.", inline=False)
+    embed.add_field(name="`/setcodemanagerrole <role1> [role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
     embed.add_field(name="`/generatedlc [max_claims]`", value="Generates a random DLC code with configured max claims (Bot Admin only).", inline=False)
     embed.add_field(name="`/deletecodebypassperms [@user]`", value="Removes code bypass permissions from a user or clears all users if left empty (Bot Admin only).", inline=False)
-    embed.add_field(name="`!setcodemanagerrole <@role1> [@role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
-    embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
     embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
     embed.add_field(name="`!createroleriddle <@role> [#channel] \"Question\" \"Answer\"`", value="Creates a role reward riddle challenge.", inline=False)
     embed.add_field(name="`!announcement [#channel] <message>`", value="Sends an announcement embed with image/video attachment support.", inline=False)
