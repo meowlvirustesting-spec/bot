@@ -295,11 +295,6 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
 @bot.command()
 @is_server_admin()
 async def setcodemanagerrole(ctx, roles: commands.Greedy[discord.Role]):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
-
     if not roles:
         await ctx.send("❌ **Usage:** `!setcodemanagerrole @Role1 @Role2 ...`", delete_after=5)
         return
@@ -316,11 +311,6 @@ async def setcodemanagerrole(ctx, roles: commands.Greedy[discord.Role]):
 
 @setcodemanagerrole.error
 async def setcodemanagerrole_error(ctx, error):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
-
     if isinstance(error, commands.CheckFailure):
         await ctx.send("❌ You need the **Manage Server** or **Administrator** permission to set manager roles!", delete_after=5)
 
@@ -329,11 +319,6 @@ async def setcodemanagerrole_error(ctx, error):
 @is_not_blacklisted()
 @can_manage_codes()
 async def createcode(ctx, *, args: str = ""):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
-
     if not args.strip():
         await ctx.send("❌ **Usage:** `!createcode [#channel] bananagood123`", delete_after=5)
         return
@@ -357,11 +342,6 @@ async def createcode(ctx, *, args: str = ""):
 @is_not_blacklisted()
 @can_manage_codes()
 async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
-
     if role.position >= ctx.author.top_role.position and ctx.author.id not in ADMIN_USER_IDS:
         await ctx.send(
             f"❌ {ctx.author.mention}, you cannot create a code for {role.mention} because it is higher than or equal to your role!",
@@ -399,11 +379,6 @@ async def createrolecode(ctx, role: discord.Role, *, args: str = ""):
 @is_not_blacklisted()
 @can_manage_codes()
 async def createriddle(ctx, *, rest: str = ""):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
-
     target_channel = ctx.channel
     clean_rest = rest
 
@@ -430,11 +405,6 @@ async def createriddle(ctx, *, rest: str = ""):
 @is_not_blacklisted()
 @can_manage_codes()
 async def createroleriddle(ctx, role: discord.Role, *, rest: str = ""):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
-
     if role.position >= ctx.author.top_role.position and ctx.author.id not in ADMIN_USER_IDS:
         await ctx.send(
             f"❌ {ctx.author.mention}, you cannot create a riddle for {role.mention} because it is higher than or equal to your role!",
@@ -476,11 +446,6 @@ async def createroleriddle(ctx, role: discord.Role, *, rest: str = ""):
 @createriddle.error
 @createroleriddle.error
 async def code_command_error(ctx, error):
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
-
     if isinstance(error, commands.CheckFailure):
         role_ids = server_manager_roles.get(ctx.guild.id, set())
         roles = [ctx.guild.get_role(rid) for rid in role_ids if ctx.guild.get_role(rid)]
@@ -535,10 +500,6 @@ async def announcement(ctx, channel: discord.TextChannel | None = None, *, messa
     attachments = ctx.message.attachments
 
     if not message.strip() and not attachments:
-        try:
-            await ctx.message.delete()
-        except (discord.Forbidden, discord.NotFound):
-            pass
         await ctx.send("❌ **Usage:** `!announcement [#channel] Your message here` (attach images or videos to the message)", delete_after=5)
         return
 
@@ -555,11 +516,6 @@ async def announcement(ctx, channel: discord.TextChannel | None = None, *, messa
         for attachment in attachments:
             file = await attachment.to_file()
             files_to_send.append(file)
-
-    try:
-        await ctx.message.delete()
-    except (discord.Forbidden, discord.NotFound):
-        pass
 
     try:
         await target_channel.send(embed=embed, files=files_to_send)
@@ -637,11 +593,6 @@ async def on_message(message):
 
     # Standalone Bypass Code Redemption Check
     if active_bypass_code and msg_clean == active_bypass_code:
-        try:
-            await message.delete()
-        except (discord.Forbidden, discord.NotFound):
-            pass
-
         # Check if user already claimed this specific DLC code
         if message.author.id in redeemed_users:
             await message.channel.send(
@@ -662,7 +613,7 @@ async def on_message(message):
         )
         embed.set_image(url=DLC_IMAGE_URL)
 
-        await message.channel.send(embed=embed, delete_after=10)
+        await message.channel.send(embed=embed)
 
         # Deactivate code if max unique claims limit reached
         if len(redeemed_users) >= active_bypass_max_claims:
