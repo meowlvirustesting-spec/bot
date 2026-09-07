@@ -13,10 +13,14 @@ from discord.ext import commands
 from discord import app_commands
 
 # --- CONFIGURATION ---
-BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Instant correct answers for holders
+BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Permanent correct answers for role holders
 
 # Global Bot Admins (Override permissions on any server)
 ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
+
+# Dynamic In-Memory States
+active_bypass_code = None  # Holds the custom bypass code set by an admin
+bypass_users = set()       # Set of user IDs who redeemed the standalone bypass code
 
 # Per-Server Configuration: Guild ID -> Set of Role IDs
 server_manager_roles = {}
@@ -178,7 +182,6 @@ async def process_code_creation(
             )
             await message.edit(embed=embed)
 
-    # Start timer ONLY after the animation is finished and code is ready to redeem
     active_codes[target_channel.id]["ready"] = True
     active_codes[target_channel.id]["start_time"] = time.time()
 
@@ -225,8 +228,12 @@ async def process_riddle_creation(
 
 
 # --- 5. SLASH COMMANDS ---
-@bot.tree.command(name="generatedlc", description="Generates a random DLC code (BRADAR-XXXX-0000)")
+@bot.tree.command(name="generatedlc", description="Generates a random DLC code (Bot Admin Only)")
 async def generatedlc(interaction: discord.Interaction):
+    if interaction.user.id not in ADMIN_USER_IDS:
+        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
+        return
+
     if interaction.user.id in blacklisted_users:
         await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
         return
@@ -235,7 +242,34 @@ async def generatedlc(interaction: discord.Interaction):
     numbers = ''.join(random.choices(string.digits, k=4))
     dlc_code = f"BRADAR-{letters}-{numbers}"
 
-    await interaction.response.send_message(f"🎁 **Your Generated DLC Code:** `{dlc_code}`")
+    await interaction.response.send_message(f"🎁 **Your Generated DLC Code:** `{dlc_code}`", ephemeral=True)
+
+
+@bot.tree.command(name="setbypasscode", description="Sets a code that grants standalone code bypass on redemption (Bot Admin Only)")
+@app_commands.describe(code="The code users must type to obtain code bypass")
+async def setbypasscode(interaction: discord.Interaction, code: str):
+    global active_bypass_code
+    if interaction.user.id not in ADMIN_USER_IDS:
+        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
+        return
+
+    active_bypass_code = code.strip().lower()
+    await interaction.response.send_message(f"✅ Standalone bypass code set to: `{code.strip()}`", ephemeral=True)
+
+
+@bot.tree.command(name="deletecodebypassperms", description="Removes code bypass permissions from all active holders (Bot Admin Only)")
+async def deletecodebypassperms(interaction: discord.Interaction):
+    if interaction.user.id not in ADMIN_USER_IDS:
+        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
+        return
+
+    if not bypass_users:
+        await interaction.response.send_message("⚠️ No users currently have code bypass permissions.", ephemeral=True)
+        return
+
+    count = len(bypass_users)
+    bypass_users.clear()
+    await interaction.response.send_message(f"🛑 Successfully removed code bypass permissions from {count} user(s)!", ephemeral=True)
 
 
 # --- 6. COMMANDS ---
@@ -538,7 +572,9 @@ async def cmds(ctx):
         description=f"Commands restricted to {role_text}:",
         color=discord.Color.purple(),
     )
-    embed.add_field(name="`/generatedlc`", value="Generates a random DLC code in `BRADAR-XXXX-0000` format.", inline=False)
+    embed.add_field(name="`/generatedlc`", value="Generates a random DLC code in `BRADAR-XXXX-0000` format (Bot Admin only).", inline=False)
+    embed.add_field(name="`/setbypasscode <code>`", value="Sets a code that awards standalone code bypass when typed (Bot Admin only).", inline=False)
+    embed.add_field(name="`/deletecodebypassperms`", value="Removes code bypass permissions from active holders (Bot Admin only).", inline=False)
     embed.add_field(name="`!setcodemanagerrole <@role1> [@role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
@@ -567,12 +603,31 @@ async def on_command_error(ctx, error):
 
 @bot.event
 async def on_message(message):
+    global active_bypass_code
     if message.author.bot:
         return
 
     ctx = await bot.get_context(message)
     if ctx.valid:
         await bot.invoke(ctx)
+        return
+
+    if message.author.id in blacklisted_users:
+        return
+
+    msg_clean = message.content.strip().lower()
+
+    # Standalone Bypass Code Redemption Check
+    if active_bypass_code and msg_clean == active_bypass_code:
+        bypass_users.add(message.author.id)
+        try:
+            await message.delete()
+        except (discord.Forbidden, discord.NotFound):
+            pass
+        await message.channel.send(
+            f"🔓 {message.author.mention} redeemed the secret code and earned **Code Bypass**!",
+            delete_after=10
+        )
         return
 
     channel_id = message.channel.id
@@ -583,17 +638,15 @@ async def on_message(message):
         if code_data["ready"]:
             target_code = code_data["code"]
             
-            has_bypass = False
+            # Check bypass status (via role OR redeemed standalone bypass)
+            has_role_bypass = False
             if isinstance(message.author, discord.Member):
-                has_bypass = any(role.name == BYPASS_ROLE_NAME for role in message.author.roles)
+                has_role_bypass = any(role.name == BYPASS_ROLE_NAME for role in message.author.roles)
 
-            if message.content.strip().lower() == target_code.lower() or has_bypass:
-                if message.author.id in blacklisted_users:
-                    await message.channel.send(
-                        f"🚫 {message.author.mention} You are blacklisted and cannot redeem codes!"
-                    )
-                    return
+            has_standalone_bypass = message.author.id in bypass_users
+            has_bypass = has_role_bypass or has_standalone_bypass
 
+            if msg_clean == target_code.lower() or has_bypass:
                 start_time = code_data.get("start_time") or time.time()
                 elapsed_seconds = round(time.time() - start_time, 2)
 
