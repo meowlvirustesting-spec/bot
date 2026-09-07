@@ -375,12 +375,14 @@ async def setcodemanagerrole_slash(
 @bot.tree.command(name="createcode", description="Creates a standard or role-reward code embed in a channel.")
 @app_commands.describe(
     code="The text code for users to type",
+    include_numbers="Set to True to append a random 4-digit number to the code",
     role="Optional reward role to assign when claimed",
     channel="The channel to display the code in (defaults to current channel)"
 )
 async def createcode_slash(
     interaction: discord.Interaction, 
     code: str, 
+    include_numbers: bool = False,
     role: discord.Role | None = None,
     channel: discord.TextChannel | None = None
 ):
@@ -415,6 +417,10 @@ async def createcode_slash(
     if not clean_code:
         await interaction.response.send_message("❌ Code cannot be empty!", ephemeral=True)
         return
+
+    if include_numbers:
+        random_digits = "".join(random.choices(string.digits, k=4))
+        clean_code = f"{clean_code}-{random_digits}"
 
     reward_msg = f" with reward {role.mention}" if role else ""
     await interaction.response.send_message(f"✅ Code creation started in {target_channel.mention}{reward_msg}!", ephemeral=True)
@@ -608,7 +614,7 @@ async def cmds(ctx):
         description=f"Commands restricted to {role_text}:",
         color=discord.Color.purple(),
     )
-    embed.add_field(name="`/createcode <code> [role] [channel]`", value="Creates a standard or role-reward code embed via slash command.", inline=False)
+    embed.add_field(name="`/createcode <code> [include_numbers] [role] [channel]`", value="Creates a standard or role-reward code embed via slash command.", inline=False)
     embed.add_field(name="`/createriddle <question> <answer> [role] [channel]`", value="Creates a standard or role-reward riddle challenge via slash command.", inline=False)
     embed.add_field(name="`/setcodemanagerrole <role1> [role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
     embed.add_field(name="`/givecodebypass <@user>`", value="Grants code bypass permissions directly to a user (Bot Admin only).", inline=False)
