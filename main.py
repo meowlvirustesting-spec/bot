@@ -131,6 +131,18 @@ def can_manage_codes():
     return commands.check(predicate)
 
 
+def user_can_manage_codes(member: discord.Member | discord.User, guild: discord.Guild | None) -> bool:
+    if member.id in ADMIN_USER_IDS:
+        return True
+    if isinstance(member, discord.Member) and guild:
+        if member.guild_permissions.administrator:
+            return True
+        assigned_role_ids = server_manager_roles.get(guild.id, set())
+        if assigned_role_ids:
+            return any(role.id in assigned_role_ids for role in member.roles)
+    return False
+
+
 # --- 3. DYNAMIC WORD & CHUNK SPLITTING ---
 def split_phrase(text: str) -> list[str]:
     if " " in text:
@@ -232,6 +244,37 @@ async def process_riddle_creation(
 
 
 # --- 5. SLASH COMMANDS ---
+@bot.tree.command(name="createcode", description="Creates a standard code embed in a channel.")
+@app_commands.describe(
+    code="The text code for users to type",
+    channel="The channel to display the code in (defaults to current channel)"
+)
+async def createcode_slash(
+    interaction: discord.Interaction, 
+    code: str, 
+    channel: discord.TextChannel | None = None
+):
+    if interaction.user.id in blacklisted_users:
+        await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
+        return
+
+    if not user_can_manage_codes(interaction.user, interaction.guild):
+        await interaction.response.send_message("❌ You do not have permission to create codes!", ephemeral=True)
+        return
+
+    target_channel = channel or interaction.channel
+    clean_code = code.strip()
+
+    if not clean_code:
+        await interaction.response.send_message("❌ Code cannot be empty!", ephemeral=True)
+        return
+
+    await interaction.response.send_message(f"✅ Code creation started in {target_channel.mention}!", ephemeral=True)
+
+    sections = split_phrase(clean_code)
+    await process_code_creation(target_channel, clean_code, sections, interaction.user)
+
+
 @bot.tree.command(name="generatedlc", description="Generates a random DLC code with configured max claims (Bot Admin Only)")
 @app_commands.describe(
     max_claims="Total number of people who can redeem this DLC code (default: 1)"
@@ -255,7 +298,6 @@ async def generatedlc(interaction: discord.Interaction, max_claims: int = 1):
     numbers = ''.join(random.choices(string.digits, k=4))
     dlc_code = f"BRADAR-{letters}-{numbers}"
 
-    # Reset redemption tracking for the new DLC code and set creator ID
     active_bypass_code = dlc_code.lower()
     active_bypass_creator_id = interaction.user.id
     active_bypass_max_claims = max_claims
@@ -315,29 +357,6 @@ async def setcodemanagerrole(ctx, roles: commands.Greedy[discord.Role]):
 async def setcodemanagerrole_error(ctx, error):
     if isinstance(error, commands.CheckFailure):
         await ctx.send("❌ You need the **Manage Server** or **Administrator** permission to set manager roles!", delete_after=5)
-
-
-@bot.command()
-@is_not_blacklisted()
-@can_manage_codes()
-async def createcode(ctx, *, args: str = ""):
-    if not args.strip():
-        await ctx.send("❌ **Usage:** `!createcode [#channel] bananagood123`", delete_after=5)
-        return
-
-    target_channel = ctx.channel
-    clean_code = args.strip()
-
-    if ctx.message.channel_mentions:
-        target_channel = ctx.message.channel_mentions[0]
-        clean_code = re.sub(r"<#\d+>", "", clean_code).strip()
-
-    if not clean_code:
-        await ctx.send("❌ **Usage:** `!createcode [#channel] bananagood123`", delete_after=5)
-        return
-
-    sections = split_phrase(clean_code)
-    await process_code_creation(target_channel, clean_code, sections, ctx.author)
 
 
 @bot.command()
@@ -443,7 +462,6 @@ async def createroleriddle(ctx, role: discord.Role, *, rest: str = ""):
     await process_riddle_creation(target_channel, question, answer, ctx.author, reward_role=role)
 
 
-@createcode.error
 @createrolecode.error
 @createriddle.error
 @createroleriddle.error
@@ -549,10 +567,10 @@ async def cmds(ctx):
         description=f"Commands restricted to {role_text}:",
         color=discord.Color.purple(),
     )
+    embed.add_field(name="`/createcode <code> [channel]`", value="Creates a standard code embed via slash command.", inline=False)
     embed.add_field(name="`/generatedlc [max_claims]`", value="Generates a random DLC code with configured max claims (Bot Admin only).", inline=False)
     embed.add_field(name="`/deletecodebypassperms [@user]`", value="Removes code bypass permissions from a user or clears all users if left empty (Bot Admin only).", inline=False)
     embed.add_field(name="`!setcodemanagerrole <@role1> [@role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
-    embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
     embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
     embed.add_field(name="`!createroleriddle <@role> [#channel] \"Question\" \"Answer\"`", value="Creates a role reward riddle challenge.", inline=False)
@@ -595,7 +613,6 @@ async def on_message(message):
 
     # Standalone Bypass Code Redemption Check
     if active_bypass_code and msg_clean == active_bypass_code:
-        # Prevent creator from claiming their own generated DLC code
         if message.author.id == active_bypass_creator_id:
             await message.channel.send(
                 f"❌ {message.author.mention}, you generated this DLC code so you cannot redeem it!",
@@ -603,7 +620,6 @@ async def on_message(message):
             )
             return
 
-        # Check if user already claimed this specific DLC code
         if message.author.id in redeemed_users:
             await message.channel.send(
                 f"⚠️ {message.author.mention}, you have already redeemed this DLC code!",
@@ -611,11 +627,9 @@ async def on_message(message):
             )
             return
 
-        # Grant permanent bypass permissions until revoked by admin
         redeemed_users.add(message.author.id)
         bypass_users.add(message.author.id)
 
-        # Embed showing custom confirmation message when redeeming DLC code
         embed = discord.Embed(
             title="🎁 You have successfully redeemed a DLC for Code Bypass!",
             description=f"🔓 {message.author.mention}, You have successfully redeemed a DLC for Code Bypass!",
@@ -625,7 +639,6 @@ async def on_message(message):
 
         await message.channel.send(embed=embed)
 
-        # Deactivate code if max unique claims limit reached
         if len(redeemed_users) >= active_bypass_max_claims:
             active_bypass_code = None
             active_bypass_creator_id = None
@@ -640,7 +653,6 @@ async def on_message(message):
         if code_data["ready"]:
             target_code = code_data["code"]
             
-            # Check bypass status
             has_role_bypass = False
             if isinstance(message.author, discord.Member):
                 has_role_bypass = any(role.name == BYPASS_ROLE_NAME for role in message.author.roles)
