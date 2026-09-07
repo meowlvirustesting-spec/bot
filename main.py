@@ -55,7 +55,6 @@ def load_manager_roles() -> dict[int, set[int]]:
         try:
             with open(MANAGERS_FILE, "r") as f:
                 data = json.load(f)
-                # Convert keys (guild IDs) and role list values back into ints and sets
                 return {int(guild_id): set(role_ids) for guild_id, role_ids in data.items()}
         except Exception as e:
             print(f"Error loading manager roles file: {e}")
@@ -63,7 +62,6 @@ def load_manager_roles() -> dict[int, set[int]]:
 
 def save_manager_roles(managers_dict: dict[int, set[int]]):
     try:
-        # Convert keys to strings and sets to lists for JSON serialization
         serializable_data = {str(k): list(v) for k, v in managers_dict.items()}
         with open(MANAGERS_FILE, "w") as f:
             json.dump(serializable_data, f)
@@ -317,7 +315,6 @@ async def setcodemanagerrole_slash(
 
     roles_list = [r for r in [role1, role2, role3, role4, role5] if r is not None]
     
-    # Save to memory AND persist to json file
     server_manager_roles[interaction.guild.id] = {role.id for role in roles_list}
     save_manager_roles(server_manager_roles)
 
@@ -430,6 +427,27 @@ async def createriddle_slash(
     await interaction.response.send_message(f"✅ Riddle created in {target_channel.mention}{reward_msg}!", ephemeral=True)
 
     await process_riddle_creation(target_channel, clean_question, clean_answer, interaction.user, reward_role=role)
+
+
+@bot.tree.command(name="givecodebypass", description="Grants code bypass permissions directly to a user (Bot Admin Only)")
+@app_commands.describe(user="The user to receive permanent code bypass permissions")
+async def givecodebypass(interaction: discord.Interaction, user: discord.User | discord.Member):
+    if interaction.user.id not in ADMIN_USER_IDS:
+        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
+        return
+
+    if interaction.user.id in blacklisted_users:
+        await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
+        return
+
+    if user.id in bypass_users:
+        await interaction.response.send_message(f"⚠️ {user.mention} already has code bypass permissions!", ephemeral=True)
+        return
+
+    bypass_users.add(user.id)
+    save_bypass_users(bypass_users)
+
+    await interaction.response.send_message(f"🔓 Successfully granted code bypass permissions to {user.mention}!", ephemeral=True)
 
 
 @bot.tree.command(name="generatedlc", description="Generates a random DLC code with configured max claims (Bot Admin Only)")
@@ -583,6 +601,7 @@ async def cmds(ctx):
     embed.add_field(name="`/createcode <code> [role] [channel]`", value="Creates a standard or role-reward code embed via slash command.", inline=False)
     embed.add_field(name="`/createriddle <question> <answer> [role] [channel]`", value="Creates a standard or role-reward riddle challenge via slash command.", inline=False)
     embed.add_field(name="`/setcodemanagerrole <role1> [role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
+    embed.add_field(name="`/givecodebypass <@user>`", value="Grants code bypass permissions directly to a user (Bot Admin only).", inline=False)
     embed.add_field(name="`/generatedlc [max_claims]`", value="Generates a random DLC code with configured max claims (Bot Admin only).", inline=False)
     embed.add_field(name="`/deletecodebypassperms [@user]`", value="Removes code bypass permissions from a user or clears all users if left empty (Bot Admin only).", inline=False)
     embed.add_field(name="`!announcement [#channel] <message>`", value="Sends an announcement embed with image/video attachment support.", inline=False)
@@ -640,7 +659,6 @@ async def on_message(message):
 
         redeemed_users.add(message.author.id)
         
-        # Save bypass permissions to memory AND persist to JSON file
         bypass_users.add(message.author.id)
         save_bypass_users(bypass_users)
 
