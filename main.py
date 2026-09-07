@@ -337,6 +337,59 @@ async def createcode_slash(
     await process_code_creation(target_channel, clean_code, sections, interaction.user, reward_role=role)
 
 
+@bot.tree.command(name="createriddle", description="Creates a standard or role-reward riddle challenge.")
+@app_commands.describe(
+    question="The question or riddle prompt",
+    answer="The exact answer users must type to solve it",
+    role="Optional reward role to assign when solved",
+    channel="The channel to post the riddle in (defaults to current channel)"
+)
+async def createriddle_slash(
+    interaction: discord.Interaction,
+    question: str,
+    answer: str,
+    role: discord.Role | None = None,
+    channel: discord.TextChannel | None = None
+):
+    if interaction.user.id in blacklisted_users:
+        await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
+        return
+
+    if not user_can_manage_codes(interaction.user, interaction.guild):
+        await interaction.response.send_message("❌ You do not have permission to create riddles!", ephemeral=True)
+        return
+
+    if role and interaction.guild:
+        member = interaction.user
+        if isinstance(member, discord.Member):
+            if role.position >= member.top_role.position and member.id not in ADMIN_USER_IDS:
+                await interaction.response.send_message(
+                    f"❌ You cannot create a riddle for {role.mention} because it is higher than or equal to your role!",
+                    ephemeral=True
+                )
+                return
+
+        if role.position >= interaction.guild.me.top_role.position:
+            await interaction.response.send_message(
+                f"❌ I cannot assign {role.mention} because it is higher than my highest role!",
+                ephemeral=True
+            )
+            return
+
+    target_channel = channel or interaction.channel
+    clean_question = question.strip()
+    clean_answer = answer.strip()
+
+    if not clean_question or not clean_answer:
+        await interaction.response.send_message("❌ Question and answer cannot be empty!", ephemeral=True)
+        return
+
+    reward_msg = f" with reward {role.mention}" if role else ""
+    await interaction.response.send_message(f"✅ Riddle created in {target_channel.mention}{reward_msg}!", ephemeral=True)
+
+    await process_riddle_creation(target_channel, clean_question, clean_answer, interaction.user, reward_role=role)
+
+
 @bot.tree.command(name="generatedlc", description="Generates a random DLC code with configured max claims (Bot Admin Only)")
 @app_commands.describe(
     max_claims="Total number of people who can redeem this DLC code (default: 1)"
@@ -398,91 +451,6 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
 
 
 # --- 6. COMMANDS ---
-@bot.command()
-@is_not_blacklisted()
-@can_manage_codes()
-async def createriddle(ctx, *, rest: str = ""):
-    target_channel = ctx.channel
-    clean_rest = rest
-
-    if ctx.message.channel_mentions:
-        target_channel = ctx.message.channel_mentions[0]
-        clean_rest = re.sub(r"<#\d+>", "", clean_rest).strip()
-
-    matches = re.findall(r'"([^"]*)"', clean_rest)
-
-    if len(matches) < 2:
-        await ctx.send(
-            "❌ **Usage:** `!createriddle [#channel] \"Question\" \"Answer\"`",
-            delete_after=5,
-        )
-        return
-
-    question = matches[0]
-    answer = matches[1]
-
-    await process_riddle_creation(target_channel, question, answer, ctx.author)
-
-
-@bot.command()
-@is_not_blacklisted()
-@can_manage_codes()
-async def createroleriddle(ctx, role: discord.Role, *, rest: str = ""):
-    if role.position >= ctx.author.top_role.position and ctx.author.id not in ADMIN_USER_IDS:
-        await ctx.send(
-            f"❌ {ctx.author.mention}, you cannot create a riddle for {role.mention} because it is higher than or equal to your role!",
-            delete_after=5,
-        )
-        return
-
-    if role.position >= ctx.guild.me.top_role.position:
-        await ctx.send(
-            f"❌ {ctx.author.mention}, I cannot assign {role.mention} because it is higher than my highest role!",
-            delete_after=5,
-        )
-        return
-
-    target_channel = ctx.channel
-    clean_rest = rest
-
-    if ctx.message.channel_mentions:
-        target_channel = ctx.message.channel_mentions[0]
-        clean_rest = re.sub(r"<#\d+>", "", clean_rest).strip()
-
-    matches = re.findall(r'"([^"]*)"', clean_rest)
-
-    if len(matches) < 2:
-        await ctx.send(
-            "❌ **Usage:** `!createroleriddle @Role [#channel] \"Question\" \"Answer\"`",
-            delete_after=5,
-        )
-        return
-
-    question = matches[0]
-    answer = matches[1]
-
-    await process_riddle_creation(target_channel, question, answer, ctx.author, reward_role=role)
-
-
-@createriddle.error
-@createroleriddle.error
-async def code_command_error(ctx, error):
-    if isinstance(error, commands.CheckFailure):
-        role_ids = server_manager_roles.get(ctx.guild.id, set())
-        roles = [ctx.guild.get_role(rid) for rid in role_ids if ctx.guild.get_role(rid)]
-        
-        if roles:
-            role_text = " or ".join([f"**{r.name}**" for r in roles])
-        else:
-            role_text = "a configured Code Manager role (or Server Admin permissions)"
-
-        await ctx.send(
-            f"❌ {ctx.author.mention}, you need {role_text} to use this command!",
-            delete_after=5,
-            allowed_mentions=discord.AllowedMentions.none()
-        )
-
-
 @bot.command()
 @is_not_blacklisted()
 @is_admin_or_owner()
@@ -569,11 +537,10 @@ async def cmds(ctx):
         color=discord.Color.purple(),
     )
     embed.add_field(name="`/createcode <code> [role] [channel]`", value="Creates a standard or role-reward code embed via slash command.", inline=False)
+    embed.add_field(name="`/createriddle <question> <answer> [role] [channel]`", value="Creates a standard or role-reward riddle challenge via slash command.", inline=False)
     embed.add_field(name="`/setcodemanagerrole <role1> [role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
     embed.add_field(name="`/generatedlc [max_claims]`", value="Generates a random DLC code with configured max claims (Bot Admin only).", inline=False)
     embed.add_field(name="`/deletecodebypassperms [@user]`", value="Removes code bypass permissions from a user or clears all users if left empty (Bot Admin only).", inline=False)
-    embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
-    embed.add_field(name="`!createroleriddle <@role> [#channel] \"Question\" \"Answer\"`", value="Creates a role reward riddle challenge.", inline=False)
     embed.add_field(name="`!announcement [#channel] <message>`", value="Sends an announcement embed with image/video attachment support.", inline=False)
     embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes (Bot Admin only).", inline=False)
     embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist (Bot Admin only).", inline=False)
