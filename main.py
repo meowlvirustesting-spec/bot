@@ -4,10 +4,13 @@ import json
 import asyncio
 import threading
 import time
+import random
+import string
 import wordninja
 from flask import Flask
 import discord
 from discord.ext import commands
+from discord import app_commands
 
 # --- CONFIGURATION ---
 BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Instant correct answers for holders
@@ -76,6 +79,11 @@ active_codes = {}
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}!")
+    try:
+        synced = await bot.tree.sync()
+        print(f"Synced {len(synced)} slash command(s).")
+    except Exception as e:
+        print(f"Failed to sync slash commands: {e}")
 
 
 # --- PERMISSION CHECKS ---
@@ -216,7 +224,21 @@ async def process_riddle_creation(
     await target_channel.send(embed=embed)
 
 
-# --- 5. COMMANDS ---
+# --- 5. SLASH COMMANDS ---
+@bot.tree.command(name="generatedlc", description="Generates a random DLC code (BRADAR-XXXX-0000)")
+async def generatedlc(interaction: discord.Interaction):
+    if interaction.user.id in blacklisted_users:
+        await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
+        return
+
+    letters = ''.join(random.choices(string.ascii_uppercase, k=4))
+    numbers = ''.join(random.choices(string.digits, k=4))
+    dlc_code = f"BRADAR-{letters}-{numbers}"
+
+    await interaction.response.send_message(f"🎁 **Your Generated DLC Code:** `{dlc_code}`")
+
+
+# --- 6. COMMANDS ---
 @bot.command()
 @is_server_admin()
 async def setcodemanagerrole(ctx, roles: commands.Greedy[discord.Role]):
@@ -516,6 +538,7 @@ async def cmds(ctx):
         description=f"Commands restricted to {role_text}:",
         color=discord.Color.purple(),
     )
+    embed.add_field(name="`/generatedlc`", value="Generates a random DLC code in `BRADAR-XXXX-0000` format.", inline=False)
     embed.add_field(name="`!setcodemanagerrole <@role1> [@role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
     embed.add_field(name="`!createcode [#channel] <code>`", value="Creates a standard code embed.", inline=False)
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
@@ -527,7 +550,7 @@ async def cmds(ctx):
     await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 
 
-# --- 6. CHAT LISTENER & GLOBAL ERROR LOGGING ---
+# --- 7. CHAT LISTENER & GLOBAL ERROR LOGGING ---
 @bot.event
 async def on_command_error(ctx, error):
     if hasattr(ctx.command, 'on_error'):
@@ -599,7 +622,7 @@ async def on_message(message):
                     await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}{time_str}! The code is now closed.")
 
 
-# --- 7. RUN BOT WITH ASYNC RECONNECT LOOP ---
+# --- 8. RUN BOT WITH ASYNC RECONNECT LOOP ---
 async def main():
     token = os.getenv("DISCORD_TOKEN")
     if not token:
