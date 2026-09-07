@@ -289,10 +289,10 @@ async def process_riddle_creation(
 
 
 # --- SLASH COMMANDS ---
-@bot.tree.command(name="announcement", description="Sends an announcement embed with image/video inside the embed (Bot Admin Only)")
+@bot.tree.command(name="announcement", description="Sends an announcement embed with image or video support (Bot Admin Only)")
 @app_commands.describe(
     message="The main body text of the announcement",
-    media="Optional image or video file to embed directly inside the message",
+    media="Optional image or video file to attach",
     channel="The channel to post the announcement in (defaults to current channel)"
 )
 async def announcement_slash(
@@ -320,7 +320,11 @@ async def announcement_slash(
     file_to_send = None
     if media:
         file_to_send = await media.to_file()
-        embed.set_image(url=f"attachment://{media.filename}")
+        content_type = media.content_type or ""
+        
+        # Images/GIFs display directly inside the embed. Videos attach directly alongside.
+        if content_type.startswith("image/"):
+            embed.set_image(url=f"attachment://{media.filename}")
 
     try:
         if file_to_send:
@@ -610,7 +614,7 @@ async def cmds(ctx):
     embed.add_field(name="`/givecodebypass <@user>`", value="Grants code bypass permissions directly to a user (Bot Admin only).", inline=False)
     embed.add_field(name="`/generatedlc [max_claims]`", value="Generates a random DLC code with configured max claims (Bot Admin only).", inline=False)
     embed.add_field(name="`/deletecodebypassperms [@user]`", value="Removes code bypass permissions from a user or clears all users if left empty (Bot Admin only).", inline=False)
-    embed.add_field(name="`/announcement <message> [media] [channel]`", value="Sends an announcement embed with direct image/video support inside the embed (Bot Admin only).", inline=False)
+    embed.add_field(name="`/announcement <message> [media] [channel]`", value="Sends an announcement embed with direct image/video support (Bot Admin only).", inline=False)
     embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes (Bot Admin only).", inline=False)
     embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist (Bot Admin only).", inline=False)
     await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
