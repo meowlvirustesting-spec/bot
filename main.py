@@ -14,7 +14,7 @@ from discord import app_commands
 
 # --- CONFIGURATION ---
 BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Permanent correct answers for role holders
-ANNOUNCEMENT_IMAGE_URL = "https://cdn.discordapp.com/attachments/1546415351049228410/1546415372213690368/Untitled106_20260907020000.png?ex=6a9fb30b&is=6a9e618b&hm=65715670c974b258a8cff733a2f40ac6fc99801dfffe891df56e3fa07de32b3f&"
+DLC_IMAGE_URL = "https://cdn.discordapp.com/attachments/1546415351049228410/1546415372213690368/Untitled106_20260907020000.png?ex=6a9fb30b&is=6a9e618b&hm=65715670c974b258a8cff733a2f40ac6fc99801dfffe891df56e3fa07de32b3f&"
 
 # Global Bot Admins (Override permissions on any server)
 ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
@@ -532,12 +532,14 @@ async def blacklist_error(ctx, error):
 @is_not_blacklisted()
 @is_server_admin()
 async def announcement(ctx, channel: discord.TextChannel | None = None, *, message: str = ""):
-    if not message.strip() and not ctx.message.attachments:
+    attachments = ctx.message.attachments
+
+    if not message.strip() and not attachments:
         try:
             await ctx.message.delete()
         except (discord.Forbidden, discord.NotFound):
             pass
-        await ctx.send("❌ **Usage:** `!announcement [#channel] Your message here`", delete_after=5)
+        await ctx.send("❌ **Usage:** `!announcement [#channel] Your message here` (attach images or videos to the message)", delete_after=5)
         return
 
     target_channel = channel or ctx.channel
@@ -547,7 +549,12 @@ async def announcement(ctx, channel: discord.TextChannel | None = None, *, messa
         color=discord.Color.blue()
     )
     embed.set_thumbnail(url=ctx.author.display_avatar.url)
-    embed.set_image(url=ANNOUNCEMENT_IMAGE_URL)
+
+    files_to_send = []
+    if attachments:
+        for attachment in attachments:
+            file = await attachment.to_file()
+            files_to_send.append(file)
 
     try:
         await ctx.message.delete()
@@ -555,7 +562,7 @@ async def announcement(ctx, channel: discord.TextChannel | None = None, *, messa
         pass
 
     try:
-        await target_channel.send(embed=embed)
+        await target_channel.send(embed=embed, files=files_to_send)
         await ctx.send(f"✅ Announcement sent to {target_channel.mention}!", delete_after=5)
     except discord.Forbidden:
         await ctx.send(f"❌ I don't have permission to send messages in {target_channel.mention}.", delete_after=5)
@@ -591,7 +598,7 @@ async def cmds(ctx):
     embed.add_field(name="`!createrolecode <@role> [#channel] <code>`", value="Creates a role reward code.", inline=False)
     embed.add_field(name="`!createriddle [#channel] \"Question\" \"Answer\"`", value="Creates a custom riddle challenge.", inline=False)
     embed.add_field(name="`!createroleriddle <@role> [#channel] \"Question\" \"Answer\"`", value="Creates a role reward riddle challenge.", inline=False)
-    embed.add_field(name="`!announcement [#channel] <message>`", value="Sends an announcement embed with a fixed image URL.", inline=False)
+    embed.add_field(name="`!announcement [#channel] <message>`", value="Sends an announcement embed with image/video attachment support.", inline=False)
     embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes (Bot Admin only).", inline=False)
     embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist (Bot Admin only).", inline=False)
     await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
@@ -647,10 +654,15 @@ async def on_message(message):
         redeemed_users.add(message.author.id)
         bypass_users[message.author.id] = 1
 
-        await message.channel.send(
-            f"🔓 {message.author.mention} redeemed the secret code and earned **Code Bypass** for 1 use!",
-            delete_after=10
+        # Embed showing the image when redeeming the DLC code
+        embed = discord.Embed(
+            title="🎁 DLC Code Redeemed!",
+            description=f"🔓 {message.author.mention} redeemed the secret code and earned **Code Bypass** for 1 use!",
+            color=discord.Color.green()
         )
+        embed.set_image(url=DLC_IMAGE_URL)
+
+        await message.channel.send(embed=embed, delete_after=10)
 
         # Deactivate code if max unique claims limit reached
         if len(redeemed_users) >= active_bypass_max_claims:
