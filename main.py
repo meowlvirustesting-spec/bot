@@ -22,7 +22,7 @@ ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
 # Dynamic In-Memory States
 active_bypass_code = None        # Holds the custom bypass code set by an admin
 active_bypass_creator_id = None  # Holds the user ID of the admin who created the active DLC code
-active_bypass_max_claims = 1     # Total number of unique users allowed to redeem the DLC code
+active_bypass_max_claims = None  # None = Unlimited claims, otherwise integer limit
 redeemed_users = set()           # Set of user IDs who have already claimed the current active DLC code
 
 # --- PERSISTENT FILE STORAGE LOGIC ---
@@ -164,11 +164,11 @@ class RedeemModal(discord.ui.Modal, title="Redeem DLC Code"):
 
         await interaction.response.send_message(embed=embed)
 
-        # Clear active code state when limit is reached
-        if len(redeemed_users) >= active_bypass_max_claims:
+        # Clear active code state when limit is reached (if not unlimited)
+        if active_bypass_max_claims is not None and len(redeemed_users) >= active_bypass_max_claims:
             active_bypass_code = None
             active_bypass_creator_id = None
-            active_bypass_max_claims = 1
+            active_bypass_max_claims = None
             redeemed_users.clear()
 
 
@@ -589,11 +589,11 @@ async def givecodebypass(interaction: discord.Interaction, user: discord.User | 
     await interaction.response.send_message(f"🔓 Successfully granted code bypass permissions to {user.mention}!", ephemeral=True)
 
 
-@bot.tree.command(name="generatedlc", description="Generates a random DLC code with configured max claims (Bot Admin Only)")
+@bot.tree.command(name="generatedlc", description="Generates a random DLC code (Bot Admin Only)")
 @app_commands.describe(
-    max_claims="Total number of people who can redeem this DLC code (default: 1)"
+    max_claims="Optional maximum claims (leave empty for unlimited)"
 )
-async def generatedlc(interaction: discord.Interaction, max_claims: int = 1):
+async def generatedlc(interaction: discord.Interaction, max_claims: int | None = None):
     global active_bypass_code, active_bypass_creator_id, active_bypass_max_claims, redeemed_users
 
     if interaction.user.id not in ADMIN_USER_IDS:
@@ -604,7 +604,7 @@ async def generatedlc(interaction: discord.Interaction, max_claims: int = 1):
         await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
         return
 
-    if max_claims < 1:
+    if max_claims is not None and max_claims < 1:
         await interaction.response.send_message("❌ Max claims must be at least 1!", ephemeral=True)
         return
 
@@ -617,7 +617,12 @@ async def generatedlc(interaction: discord.Interaction, max_claims: int = 1):
     active_bypass_max_claims = max_claims
     redeemed_users.clear()
 
-    claim_text = "1 person" if max_claims == 1 else f"{max_claims} people"
+    if max_claims is None:
+        claim_text = "♾️ Unlimited"
+    elif max_claims == 1:
+        claim_text = "1 person"
+    else:
+        claim_text = f"{max_claims} people"
 
     await interaction.response.send_message(
         f"🎁 **Generated DLC Code:** `{dlc_code}`\n👥 **Max Claims:** {claim_text}\n✅ *This code is active until claimed!*", 
@@ -724,7 +729,7 @@ async def cmds(ctx):
     embed.add_field(name="`/createriddle <question> <answer> [role] [channel]`", value="Creates a standard or role-reward riddle challenge via slash command.", inline=False)
     embed.add_field(name="`/setcodemanagerrole <role1> [role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
     embed.add_field(name="`/givecodebypass <@user>`", value="Grants code bypass permissions directly to a user (Bot Admin only).", inline=False)
-    embed.add_field(name="`/generatedlc [max_claims]`", value="Generates a random DLC code with configured max claims (Bot Admin only).", inline=False)
+    embed.add_field(name="`/generatedlc [max_claims]`", value="Generates a random DLC code (leave max_claims empty for unlimited).", inline=False)
     embed.add_field(name="`/sendredeempanel [channel]`", value="Posts an interactive redemption panel with a modal pop-up (Bot Admin only).", inline=False)
     embed.add_field(name="`/deletecodebypassperms [@user]`", value="Removes code bypass permissions from a user or clears all users if left empty (Bot Admin only).", inline=False)
     embed.add_field(name="`/announcement <title> [description] [media] [channel]`", value="Sends an announcement embed with purple color and media support (Bot Admin only).", inline=False)
@@ -789,11 +794,11 @@ async def on_message(message):
 
         await message.channel.send(embed=embed)
 
-        # Properly clear active DLC code after claim limit reached
-        if len(redeemed_users) >= active_bypass_max_claims:
+        # Clear active code state when limit is reached (if limit is set)
+        if active_bypass_max_claims is not None and len(redeemed_users) >= active_bypass_max_claims:
             active_bypass_code = None
             active_bypass_creator_id = None
-            active_bypass_max_claims = 1
+            active_bypass_max_claims = None
             redeemed_users.clear()
 
         return
