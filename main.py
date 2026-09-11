@@ -164,9 +164,12 @@ class RedeemModal(discord.ui.Modal, title="Redeem DLC Code"):
 
         await interaction.response.send_message(embed=embed)
 
+        # Clear active code state when limit is reached
         if len(redeemed_users) >= active_bypass_max_claims:
             active_bypass_code = None
             active_bypass_creator_id = None
+            active_bypass_max_claims = 1
+            redeemed_users.clear()
 
 
 class RedeemPanelView(discord.ui.View):
@@ -617,7 +620,7 @@ async def generatedlc(interaction: discord.Interaction, max_claims: int = 1):
     claim_text = "1 person" if max_claims == 1 else f"{max_claims} people"
 
     await interaction.response.send_message(
-        f"🎁 **Generated DLC Code:** `{dlc_code}`\n♾️ **Bypass Duration:** Unlimited until deleted by an admin\n👥 **Max Claims:** {claim_text}\n✅ *This code is now active!*", 
+        f"🎁 **Generated DLC Code:** `{dlc_code}`\n👥 **Max Claims:** {claim_text}\n✅ *This code is active until claimed!*", 
         ephemeral=True
     )
 
@@ -786,9 +789,12 @@ async def on_message(message):
 
         await message.channel.send(embed=embed)
 
+        # Properly clear active DLC code after claim limit reached
         if len(redeemed_users) >= active_bypass_max_claims:
             active_bypass_code = None
             active_bypass_creator_id = None
+            active_bypass_max_claims = 1
+            redeemed_users.clear()
 
         return
 
