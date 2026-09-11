@@ -36,7 +36,8 @@ def load_blacklist() -> set[int]:
     if os.path.exists(BLACKLIST_FILE):
         try:
             with open(BLACKLIST_FILE, "r") as f:
-                return set(json.load(f))
+                data = json.load(f)
+                return set(data)
         except Exception as e:
             print(f"Error loading blacklist file: {e}")
     return set()
@@ -44,7 +45,7 @@ def load_blacklist() -> set[int]:
 def save_blacklist(blacklist_set: set[int]):
     try:
         with open(BLACKLIST_FILE, "w") as f:
-            json.dump(list(blacklist_set), f)
+            json.dump(list(blacklist_set), f, indent=4)
     except Exception as e:
         print(f"Error saving blacklist file: {e}")
 
@@ -64,7 +65,7 @@ def save_manager_roles(managers_dict: dict[int, set[int]]):
     try:
         serializable_data = {str(k): list(v) for k, v in managers_dict.items()}
         with open(MANAGERS_FILE, "w") as f:
-            json.dump(serializable_data, f)
+            json.dump(serializable_data, f, indent=4)
     except Exception as e:
         print(f"Error saving manager roles file: {e}")
 
@@ -74,7 +75,8 @@ def load_bypass_users() -> set[int]:
     if os.path.exists(BYPASS_FILE):
         try:
             with open(BYPASS_FILE, "r") as f:
-                return set(json.load(f))
+                data = json.load(f)
+                return set(data)
         except Exception as e:
             print(f"Error loading bypass users file: {e}")
     return set()
@@ -82,12 +84,12 @@ def load_bypass_users() -> set[int]:
 def save_bypass_users(bypass_set: set[int]):
     try:
         with open(BYPASS_FILE, "w") as f:
-            json.dump(list(bypass_set), f)
+            json.dump(list(bypass_set), f, indent=4)
     except Exception as e:
         print(f"Error saving bypass users file: {e}")
 
 
-# Initialize persistent variables
+# Load persistent variables into memory at startup
 blacklisted_users = load_blacklist()
 server_manager_roles = load_manager_roles()
 bypass_users = load_bypass_users()
@@ -164,7 +166,6 @@ class RedeemModal(discord.ui.Modal, title="Redeem DLC Code"):
 
         await interaction.response.send_message(embed=embed)
 
-        # Clear active code state when limit is reached (if not unlimited)
         if active_bypass_max_claims is not None and len(redeemed_users) >= active_bypass_max_claims:
             active_bypass_code = None
             active_bypass_creator_id = None
@@ -794,7 +795,6 @@ async def on_message(message):
 
         await message.channel.send(embed=embed)
 
-        # Clear active code state when limit is reached (if limit is set)
         if active_bypass_max_claims is not None and len(redeemed_users) >= active_bypass_max_claims:
             active_bypass_code = None
             active_bypass_creator_id = None
