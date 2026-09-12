@@ -206,16 +206,6 @@ def is_admin_or_owner():
     return commands.check(predicate)
 
 
-def is_server_admin():
-    async def predicate(ctx):
-        if ctx.author.id in ADMIN_USER_IDS:
-            return True
-        if isinstance(ctx.author, discord.Member):
-            return ctx.author.guild_permissions.manage_guild or ctx.author.guild_permissions.administrator
-        return False
-    return commands.check(predicate)
-
-
 def user_is_server_admin(member: discord.Member | discord.User) -> bool:
     if member.id in ADMIN_USER_IDS:
         return True
@@ -626,7 +616,7 @@ async def generatedlc(interaction: discord.Interaction, max_claims: int | None =
         claim_text = f"{max_claims} people"
 
     await interaction.response.send_message(
-        f"🎁 **Generated DLC Code:** `{dlc_code}`\n👥 **Max Claims:** {claim_text}\n✅ *This code is active until claimed!*", 
+        f"🎁 **Generated DLC Code:** `{dlc_code}`\n👥 **Max Claims:** {claim_text}\n✅ *This code is active until claimed via the Redeem Panel!*", 
         ephemeral=True
     )
 
@@ -756,7 +746,6 @@ async def on_command_error(ctx, error):
 
 @bot.event
 async def on_message(message):
-    global active_bypass_code, active_bypass_creator_id, active_bypass_max_claims
     if message.author.bot:
         return
 
@@ -769,40 +758,6 @@ async def on_message(message):
         return
 
     msg_clean = message.content.strip().lower()
-
-    if active_bypass_code and msg_clean == active_bypass_code:
-        if message.author.id == active_bypass_creator_id:
-            return
-
-        if message.author.id in redeemed_users:
-            await message.channel.send(
-                f"⚠️ {message.author.mention}, you have already redeemed this DLC code!",
-                delete_after=7
-            )
-            return
-
-        redeemed_users.add(message.author.id)
-        
-        bypass_users.add(message.author.id)
-        save_bypass_users(bypass_users)
-
-        embed = discord.Embed(
-            title="🎁 You have successfully redeemed a DLC for Code Bypass!",
-            description=f"🔓 {message.author.mention}, You have successfully redeemed a DLC for Code Bypass!",
-            color=discord.Color.green()
-        )
-        embed.set_image(url=DLC_IMAGE_URL)
-
-        await message.channel.send(embed=embed)
-
-        if active_bypass_max_claims is not None and len(redeemed_users) >= active_bypass_max_claims:
-            active_bypass_code = None
-            active_bypass_creator_id = None
-            active_bypass_max_claims = None
-            redeemed_users.clear()
-
-        return
-
     channel_id = message.channel.id
 
     if channel_id in active_codes:
