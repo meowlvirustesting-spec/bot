@@ -260,7 +260,8 @@ async def process_code_creation(
     sections: list[str],
     creator: discord.User | discord.Member,
     reward_role: discord.Role | None = None,
-    random_digits: str | None = None
+    random_digits: str | None = None,
+    speed: float = 1.3
 ):
     full_solution = f"{clean_code} {random_digits}".strip() if random_digits else clean_code
 
@@ -285,7 +286,7 @@ async def process_code_creation(
 
     async with target_channel.typing():
         for section in sections:
-            await asyncio.sleep(1.3)
+            await asyncio.sleep(speed)
             if has_spaces:
                 displayed_text += section + " "
             else:
@@ -298,7 +299,7 @@ async def process_code_creation(
             )
             await message.edit(embed=embed)
 
-    await asyncio.sleep(2.5)
+    await asyncio.sleep(speed)
 
     if random_digits:
         embed.add_field(
@@ -445,6 +446,7 @@ async def setcodemanagerrole_slash(
 @bot.tree.command(name="createcode", description="Creates a standard or role-reward code embed in a channel.")
 @app_commands.describe(
     code="The text code for users to type",
+    speed="Delay in seconds between reveals (default: 1.3)",
     include_numbers="Set to True to add a random 4-digit number in a separate embed section",
     role="Optional reward role to assign when claimed",
     channel="The channel to display the code in (defaults to current channel)"
@@ -452,6 +454,7 @@ async def setcodemanagerrole_slash(
 async def createcode_slash(
     interaction: discord.Interaction, 
     code: str, 
+    speed: float = 1.3,
     include_numbers: bool = False,
     role: discord.Role | None = None,
     channel: discord.TextChannel | None = None
@@ -462,6 +465,10 @@ async def createcode_slash(
 
     if not user_can_manage_codes(interaction.user, interaction.guild):
         await interaction.response.send_message("❌ You do not have permission to create codes!", ephemeral=True)
+        return
+
+    if speed <= 0:
+        await interaction.response.send_message("❌ Speed must be greater than 0 seconds!", ephemeral=True)
         return
 
     if role and interaction.guild:
@@ -502,7 +509,8 @@ async def createcode_slash(
         sections, 
         interaction.user, 
         reward_role=role, 
-        random_digits=random_digits
+        random_digits=random_digits,
+        speed=speed
     )
 
 
@@ -716,7 +724,7 @@ async def cmds(ctx):
         description=f"Commands restricted to {role_text}:",
         color=discord.Color.purple(),
     )
-    embed.add_field(name="`/createcode <code> [include_numbers] [role] [channel]`", value="Creates a standard or role-reward code embed via slash command.", inline=False)
+    embed.add_field(name="`/createcode <code> [speed] [include_numbers] [role] [channel]`", value="Creates a standard or role-reward code embed via slash command.", inline=False)
     embed.add_field(name="`/createriddle <question> <answer> [role] [channel]`", value="Creates a standard or role-reward riddle challenge via slash command.", inline=False)
     embed.add_field(name="`/setcodemanagerrole <role1> [role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
     embed.add_field(name="`/givecodebypass <@user>`", value="Grants code bypass permissions directly to a user (Bot Admin only).", inline=False)
