@@ -261,7 +261,8 @@ async def process_code_creation(
     creator: discord.User | discord.Member,
     reward_role: discord.Role | None = None,
     random_digits: str | None = None,
-    speed: float = 1.3
+    speed: float = 1.3,
+    show_sections: bool = False
 ):
     full_solution = f"{clean_code}{random_digits}" if random_digits else clean_code
 
@@ -272,6 +273,10 @@ async def process_code_creation(
         "type": "code",
         "start_time": None,
     }
+
+    # If requested, send section count prior to reveal sequence starting
+    if show_sections:
+        await target_channel.send(f"This code will be split into **{len(sections)}** sections!")
 
     embed = discord.Embed(
         title="Creating Code...",
@@ -312,11 +317,9 @@ async def process_code_creation(
 
     # Separate message sequence for additional digits
     if random_digits:
-        # Initial delay before alert message (3-10 seconds)
         await asyncio.sleep(random.uniform(3.0, 10.0))
         await target_channel.send("The code isn't over yet...")
         
-        # Secondary delay before the numbers appear (3-10 seconds)
         await asyncio.sleep(random.uniform(3.0, 10.0))
         await target_channel.send(f"**{random_digits}**")
 
@@ -443,6 +446,7 @@ async def setcodemanagerrole_slash(
     code="The text code for users to type",
     speed="Delay in seconds between reveals (default: 1.3)",
     include_numbers="Set to True to add a random 4-digit number at the end",
+    show_sections="Set to True to state how many sections the code is split into before reveal",
     role="Optional reward role to assign when claimed",
     channel="The channel to display the code in (defaults to current channel)"
 )
@@ -451,6 +455,7 @@ async def createcode_slash(
     code: str, 
     speed: float = 1.3,
     include_numbers: bool = False,
+    show_sections: bool = False,
     role: discord.Role | None = None,
     channel: discord.TextChannel | None = None
 ):
@@ -505,7 +510,8 @@ async def createcode_slash(
         interaction.user, 
         reward_role=role, 
         random_digits=random_digits,
-        speed=speed
+        speed=speed,
+        show_sections=show_sections
     )
 
 
@@ -719,7 +725,7 @@ async def cmds(ctx):
         description=f"Commands restricted to {role_text}:",
         color=discord.Color.purple(),
     )
-    embed.add_field(name="`/createcode <code> [speed] [include_numbers] [role] [channel]`", value="Creates a standard or role-reward code embed via slash command.", inline=False)
+    embed.add_field(name="`/createcode <code> [speed] [include_numbers] [show_sections] [role] [channel]`", value="Creates a standard or role-reward code embed via slash command.", inline=False)
     embed.add_field(name="`/createriddle <question> <answer> [role] [channel]`", value="Creates a standard or role-reward riddle challenge via slash command.", inline=False)
     embed.add_field(name="`/setcodemanagerrole <role1> [role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
     embed.add_field(name="`/givecodebypass <@user>`", value="Grants code bypass permissions directly to a user (Bot Admin only).", inline=False)
