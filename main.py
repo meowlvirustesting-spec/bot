@@ -263,7 +263,8 @@ async def process_code_creation(
     random_digits: str | None = None,
     speed: float = 1.3
 ):
-    full_solution = f"{clean_code} {random_digits}".strip() if random_digits else clean_code
+    # Combines letters and numbers directly without spaces (e.g. ZZZZ0000)
+    full_solution = f"{clean_code}{random_digits}" if random_digits else clean_code
 
     active_codes[target_channel.id] = {
         "code": full_solution.lower(),
@@ -303,14 +304,14 @@ async def process_code_creation(
 
     if random_digits:
         embed.add_field(
-            name="🔢 Extra Security Digits",
+            name="The code isn't over yet...",
             value=f"**{random_digits}**",
             inline=False
         )
         embed.description = (
             f"**Created by:** {creator.mention}\n\n"
-            f"**USE CODE:** {clean_code}\n\n"
-            f"*Type the base code followed by the security digits to solve!*"
+            f"**USE CODE:** {clean_code}{random_digits}\n\n"
+            f"*Type the base code directly attached with digits to solve!*"
         )
         await message.edit(embed=embed)
 
@@ -447,7 +448,7 @@ async def setcodemanagerrole_slash(
 @app_commands.describe(
     code="The text code for users to type",
     speed="Delay in seconds between reveals (default: 1.3)",
-    include_numbers="Set to True to add a random 4-digit number in a separate embed section",
+    include_numbers="Set to True to add a random 4-digit number at the end",
     role="Optional reward role to assign when claimed",
     channel="The channel to display the code in (defaults to current channel)"
 )
