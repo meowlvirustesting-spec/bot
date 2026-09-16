@@ -263,7 +263,6 @@ async def process_code_creation(
     random_digits: str | None = None,
     speed: float = 1.3
 ):
-    # Combines letters and numbers directly without spaces (e.g. ZZZZ0000)
     full_solution = f"{clean_code}{random_digits}" if random_digits else clean_code
 
     active_codes[target_channel.id] = {
@@ -300,21 +299,6 @@ async def process_code_creation(
             )
             await message.edit(embed=embed)
 
-    await asyncio.sleep(speed)
-
-    if random_digits:
-        embed.add_field(
-            name="The code isn't over yet...",
-            value=f"**{random_digits}**",
-            inline=False
-        )
-        embed.description = (
-            f"**Created by:** {creator.mention}\n\n"
-            f"**USE CODE:** {clean_code}{random_digits}\n\n"
-            f"*Type the base code directly attached with digits to solve!*"
-        )
-        await message.edit(embed=embed)
-
     active_codes[target_channel.id]["ready"] = True
     active_codes[target_channel.id]["start_time"] = time.time()
 
@@ -325,6 +309,16 @@ async def process_code_creation(
 
     embed.color = discord.Color.green()
     await message.edit(embed=embed)
+
+    # Separate message sequence for additional digits
+    if random_digits:
+        # Initial delay before alert message (3-10 seconds)
+        await asyncio.sleep(random.uniform(3.0, 10.0))
+        await target_channel.send("The code isn't over yet...")
+        
+        # Secondary delay before the numbers appear (3-10 seconds)
+        await asyncio.sleep(random.uniform(3.0, 10.0))
+        await target_channel.send(f"**{random_digits}**")
 
 
 async def process_riddle_creation(
