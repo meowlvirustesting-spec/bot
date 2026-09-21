@@ -25,6 +25,7 @@ ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
 # --- PERSISTENT FILE STORAGE LOGIC ---
 BLACKLIST_FILE = "blacklist.json"
 MANAGERS_FILE = "server_managers.json"
+BYPASS_FILE = "bypass_users.json"
 
 
 def load_blacklist() -> set[int]:
@@ -66,8 +67,28 @@ def save_manager_roles(managers_dict: dict[int, set[int]]):
         print(f"Error saving manager roles file: {e}")
 
 
+def load_bypass_users() -> set[int]:
+    if os.path.exists(BYPASS_FILE):
+        try:
+            with open(BYPASS_FILE, "r") as f:
+                data = json.load(f)
+                return set(data)
+        except Exception as e:
+            print(f"Error loading bypass users file: {e}")
+    return set()
+
+
+def save_bypass_users(bypass_set: set[int]):
+    try:
+        with open(BYPASS_FILE, "w") as f:
+            json.dump(list(bypass_set), f, indent=4)
+    except Exception as e:
+        print(f"Error saving bypass users file: {e}")
+
+
 blacklisted_users = load_blacklist()
 server_manager_roles = load_manager_roles()
+bypass_users = load_bypass_users()
 
 # --- KEEP-ALIVE WEB SERVER FOR RENDER ---
 app = Flask(__name__)
@@ -360,6 +381,47 @@ async def setcoderole_slash(
     )
 
 
+@bot.tree.command(name="givecodebypass", description="Grants code bypass permissions to a user (Bot Admin Only)")
+async def givecodebypass(interaction: discord.Interaction, user: discord.User | discord.Member):
+    if interaction.user.id not in ADMIN_USER_IDS:
+        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
+        return
+
+    if user.id in bypass_users:
+        await interaction.response.send_message(f"⚠️ {user.mention} already has code bypass permissions!", ephemeral=True)
+        return
+
+    bypass_users.add(user.id)
+    save_bypass_users(bypass_users)
+
+    await interaction.response.send_message(f"🔓 Granted code bypass permissions to {user.mention}!", ephemeral=True)
+
+
+@bot.tree.command(name="deletecodebypassperms", description="Removes code bypass permissions from a user or all users (Bot Admin Only)")
+async def deletecodebypassperms(interaction: discord.Interaction, user: discord.User | discord.Member | None = None):
+    if interaction.user.id not in ADMIN_USER_IDS:
+        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
+        return
+
+    if user:
+        if user.id not in bypass_users:
+            await interaction.response.send_message(f"⚠️ {user.mention} does not have active code bypass permissions.", ephemeral=True)
+            return
+        
+        bypass_users.remove(user.id)
+        save_bypass_users(bypass_users)
+        await interaction.response.send_message(f"🛑 Removed code bypass permissions from {user.mention}!", ephemeral=True)
+    else:
+        if not bypass_users:
+            await interaction.response.send_message("⚠️ No users currently have code bypass permissions.", ephemeral=True)
+            return
+
+        count = len(bypass_users)
+        bypass_users.clear()
+        save_bypass_users(bypass_users)
+        await interaction.response.send_message(f"🛑 Removed code bypass permissions from all {count} user(s)!", ephemeral=True)
+
+
 @bot.tree.command(name="createcode", description="Creates a standard or role-reward code embed.")
 async def createcode_slash(
     interaction: discord.Interaction, 
@@ -512,7 +574,10 @@ async def on_message(message: discord.Message):
             if isinstance(message.author, discord.Member):
                 has_role_bypass = any(role.name == BYPASS_ROLE_NAME for role in message.author.roles)
 
-            if msg_clean == target_code.lower() or has_role_bypass:
+            has_standalone_bypass = message.author.id in bypass_users
+            has_bypass = has_role_bypass or has_standalone_bypass
+
+            if msg_clean == target_code.lower() or has_bypass:
                 start_time = code_data.get("start_time") or time.time()
                 elapsed_seconds = round(time.time() - start_time, 2)
 
