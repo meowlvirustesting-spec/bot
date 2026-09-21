@@ -448,7 +448,7 @@ async def createcode_slash(
         await interaction.followup.send("❌ Speed must be greater than 0 seconds!", ephemeral=True)
         return
 
-    # --- DIRECT ROLE HIERARCHY CHECK ---
+    # --- STRICT ROLE HIERARCHY CHECK (NO BYPASS FOR ANYONE) ---
     if role and interaction.guild:
         member = interaction.guild.get_member(interaction.user.id)
         if not member:
@@ -458,14 +458,12 @@ async def createcode_slash(
                 member = interaction.user
 
         if isinstance(member, discord.Member):
-            is_owner = interaction.guild.owner_id == member.id
-            if not is_owner and member.id not in ADMIN_USER_IDS:
-                if role >= member.top_role:
-                    await interaction.followup.send(
-                        f"❌ You cannot use {role.mention} because it is higher than or equal to your highest role!",
-                        ephemeral=True
-                    )
-                    return
+            if role >= member.top_role:
+                await interaction.followup.send(
+                    f"❌ You cannot use {role.mention} because it is higher than or equal to your highest role!",
+                    ephemeral=True
+                )
+                return
 
         if interaction.guild.me and interaction.guild.me.top_role:
             if role >= interaction.guild.me.top_role:
@@ -521,7 +519,7 @@ async def createriddle_slash(
         await interaction.followup.send("❌ You do not have permission to create riddles!", ephemeral=True)
         return
 
-    # --- DIRECT ROLE HIERARCHY CHECK ---
+    # --- STRICT ROLE HIERARCHY CHECK (NO BYPASS FOR ANYONE) ---
     if role and interaction.guild:
         member = interaction.guild.get_member(interaction.user.id)
         if not member:
@@ -531,14 +529,12 @@ async def createriddle_slash(
                 member = interaction.user
 
         if isinstance(member, discord.Member):
-            is_owner = interaction.guild.owner_id == member.id
-            if not is_owner and member.id not in ADMIN_USER_IDS:
-                if role >= member.top_role:
-                    await interaction.followup.send(
-                        f"❌ You cannot use {role.mention} because it is higher than or equal to your highest role!",
-                        ephemeral=True
-                    )
-                    return
+            if role >= member.top_role:
+                await interaction.followup.send(
+                    f"❌ You cannot use {role.mention} because it is higher than or equal to your highest role!",
+                    ephemeral=True
+                )
+                return
 
         if interaction.guild.me and interaction.guild.me.top_role:
             if role >= interaction.guild.me.top_role:
@@ -566,7 +562,7 @@ async def createriddle_slash(
     await process_riddle_creation(target_channel, clean_question, clean_answer, interaction.user, reward_role=role)
 
 
-# --- PREFIX COMMANDS & LISTENERS ---
+# --- PREFIX COMMANDS (!cmds) ---
 @bot.command(name="cmds")
 @is_not_blacklisted()
 async def cmds_command(ctx):
@@ -586,32 +582,13 @@ async def cmds_command(ctx):
         inline=False
     )
 
-    embed.add_field(
-        name="⚡ Admin & Utility Commands",
-        value=(
-            "`/announcement` - Posts an announcement embed with optional media.\n"
-            "`/givecodebypass` - Grants code bypass privileges to a user.\n"
-            "`/deletecodebypassperms` - Removes bypass privileges from a user or all users."
-        ),
-        inline=False
-    )
-
-    embed.add_field(
-        name="⚙️ Prefix Commands",
-        value=(
-            "`!cmds` - Display this help menu.\n"
-            "`!blacklist <user>` - Blacklists a user from using the bot.\n"
-            "`!unblacklist <user>` - Unblacklists a user."
-        ),
-        inline=False
-    )
-
     if hasattr(ctx.author, "display_avatar"):
         embed.set_footer(text=f"Requested by {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
 
     await ctx.send(embed=embed)
 
 
+# --- ADMIN PREFIX COMMANDS (HIDDEN FROM !cmds) ---
 @bot.command()
 @is_not_blacklisted()
 @is_admin_or_owner()
@@ -636,6 +613,7 @@ async def unblacklist(ctx, user: discord.User | discord.Member):
     await ctx.send(f"✅ {user.mention} has been removed from the blacklist!")
 
 
+# --- MESSAGE LISTENER FOR CODE SOLVING ---
 @bot.event
 async def on_message(message: discord.Message):
     if message.author.bot:
