@@ -122,8 +122,13 @@ is_synced = False  # Track command sync status across reconnects
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     print(f"Error in slash command '{interaction.command.name if interaction.command else 'Unknown'}': {error}")
-    if not interaction.response.is_done():
-        await interaction.response.send_message("❌ An error occurred while processing this command.", ephemeral=True)
+    try:
+        if not interaction.response.is_done():
+            await interaction.response.send_message("❌ An error occurred while processing this command.", ephemeral=True)
+        else:
+            await interaction.followup.send("❌ An error occurred while processing this command.", ephemeral=True)
+    except Exception:
+        pass
 
 
 @bot.event
@@ -304,17 +309,19 @@ async def announcement_slash(
     media: discord.Attachment | None = None,
     channel: discord.TextChannel | None = None
 ):
+    await interaction.response.defer(ephemeral=True)
+
     if interaction.user.id not in ADMIN_USER_IDS:
-        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
+        await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
         return
 
     if interaction.user.id in blacklisted_users:
-        await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
+        await interaction.followup.send("🚫 You are blacklisted from using bot commands!", ephemeral=True)
         return
 
     target_channel = channel or interaction.channel
     if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
-        await interaction.response.send_message("❌ Invalid target channel!", ephemeral=True)
+        await interaction.followup.send("❌ Invalid target channel!", ephemeral=True)
         return
 
     embed = discord.Embed(
@@ -337,9 +344,9 @@ async def announcement_slash(
             await target_channel.send(embed=embed, file=file_to_send)
         else:
             await target_channel.send(embed=embed)
-        await interaction.response.send_message(f"✅ Announcement sent to {target_channel.mention}!", ephemeral=True)
+        await interaction.followup.send(f"✅ Announcement sent to {target_channel.mention}!", ephemeral=True)
     except discord.Forbidden:
-        await interaction.response.send_message(f"❌ I don't have permission to send messages in {target_channel.mention}.", ephemeral=True)
+        await interaction.followup.send(f"❌ I don't have permission to send messages in {target_channel.mention}.", ephemeral=True)
 
 
 @bot.tree.command(name="setcoderole", description="Sets role(s) allowed to create codes for this server.")
@@ -351,12 +358,14 @@ async def setcoderole_slash(
     role4: discord.Role | None = None,
     role5: discord.Role | None = None
 ):
+    await interaction.response.defer(ephemeral=True)
+
     if not interaction.guild:
-        await interaction.response.send_message("❌ This command can only be used inside a server!", ephemeral=True)
+        await interaction.followup.send("❌ This command can only be used inside a server!", ephemeral=True)
         return
 
     if not user_is_server_admin(interaction.user):
-        await interaction.response.send_message("❌ You need **Manage Server** or **Administrator** permissions!", ephemeral=True)
+        await interaction.followup.send("❌ You need **Manage Server** or **Administrator** permissions!", ephemeral=True)
         return
 
     roles_list = [r for r in [role1, role2, role3, role4, role5] if r is not None]
@@ -364,7 +373,7 @@ async def setcoderole_slash(
     save_manager_roles(server_manager_roles)
 
     role_names = ", ".join([f"**{role.name}** (`ID: {role.id}`)" for role in roles_list])
-    await interaction.response.send_message(
+    await interaction.followup.send(
         f"✅ Code Manager roles for **{interaction.guild.name}** set to: {role_names}!",
         ephemeral=True
     )
@@ -372,43 +381,47 @@ async def setcoderole_slash(
 
 @bot.tree.command(name="givecodebypass", description="Grants code bypass permissions to a user (Bot Admin Only)")
 async def givecodebypass(interaction: discord.Interaction, user: discord.User | discord.Member):
+    await interaction.response.defer(ephemeral=True)
+
     if interaction.user.id not in ADMIN_USER_IDS:
-        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
+        await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
         return
 
     if user.id in bypass_users:
-        await interaction.response.send_message(f"⚠️ {user.mention} already has code bypass permissions!", ephemeral=True)
+        await interaction.followup.send(f"⚠️ {user.mention} already has code bypass permissions!", ephemeral=True)
         return
 
     bypass_users.add(user.id)
     save_bypass_users(bypass_users)
 
-    await interaction.response.send_message(f"🔓 Granted code bypass permissions to {user.mention}!", ephemeral=True)
+    await interaction.followup.send(f"🔓 Granted code bypass permissions to {user.mention}!", ephemeral=True)
 
 
 @bot.tree.command(name="deletecodebypassperms", description="Removes code bypass permissions from a user or all users (Bot Admin Only)")
 async def deletecodebypassperms(interaction: discord.Interaction, user: discord.User | discord.Member | None = None):
+    await interaction.response.defer(ephemeral=True)
+
     if interaction.user.id not in ADMIN_USER_IDS:
-        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
+        await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
         return
 
     if user:
         if user.id not in bypass_users:
-            await interaction.response.send_message(f"⚠️ {user.mention} does not have active code bypass permissions.", ephemeral=True)
+            await interaction.followup.send(f"⚠️ {user.mention} does not have active code bypass permissions.", ephemeral=True)
             return
         
         bypass_users.remove(user.id)
         save_bypass_users(bypass_users)
-        await interaction.response.send_message(f"🛑 Removed code bypass permissions from {user.mention}!", ephemeral=True)
+        await interaction.followup.send(f"🛑 Removed code bypass permissions from {user.mention}!", ephemeral=True)
     else:
         if not bypass_users:
-            await interaction.response.send_message("⚠️ No users currently have code bypass permissions.", ephemeral=True)
+            await interaction.followup.send("⚠️ No users currently have code bypass permissions.", ephemeral=True)
             return
 
         count = len(bypass_users)
         bypass_users.clear()
         save_bypass_users(bypass_users)
-        await interaction.response.send_message(f"🛑 Removed code bypass permissions from all {count} user(s)!", ephemeral=True)
+        await interaction.followup.send(f"🛑 Removed code bypass permissions from all {count} user(s)!", ephemeral=True)
 
 
 @bot.tree.command(name="createcode", description="Creates a standard or role-reward code embed.")
@@ -421,30 +434,32 @@ async def createcode_slash(
     role: discord.Role | None = None,
     channel: discord.TextChannel | None = None
 ):
+    await interaction.response.defer(ephemeral=True)
+
     if interaction.user.id in blacklisted_users:
-        await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
+        await interaction.followup.send("🚫 You are blacklisted from using bot commands!", ephemeral=True)
         return
 
     if not user_can_manage_codes(interaction.user, interaction.guild):
-        await interaction.response.send_message("❌ You do not have permission to create codes!", ephemeral=True)
+        await interaction.followup.send("❌ You do not have permission to create codes!", ephemeral=True)
         return
 
     if speed <= 0:
-        await interaction.response.send_message("❌ Speed must be greater than 0 seconds!", ephemeral=True)
+        await interaction.followup.send("❌ Speed must be greater than 0 seconds!", ephemeral=True)
         return
 
     if role and interaction.guild and interaction.guild.me:
         member = interaction.user
         if isinstance(member, discord.Member) and member.top_role:
             if role.position >= member.top_role.position and member.id not in ADMIN_USER_IDS:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     f"❌ You cannot create a code for {role.mention} because it is higher than or equal to your role!",
                     ephemeral=True
                 )
                 return
 
         if interaction.guild.me.top_role and role.position >= interaction.guild.me.top_role.position:
-            await interaction.response.send_message(
+            await interaction.followup.send(
                 f"❌ I cannot assign {role.mention} because it is higher than my highest role!",
                 ephemeral=True
             )
@@ -452,18 +467,18 @@ async def createcode_slash(
 
     target_channel = channel or interaction.channel
     if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
-        await interaction.response.send_message("❌ Invalid channel destination!", ephemeral=True)
+        await interaction.followup.send("❌ Invalid channel destination!", ephemeral=True)
         return
 
     clean_code = code.strip()
 
     if not clean_code:
-        await interaction.response.send_message("❌ Code cannot be empty!", ephemeral=True)
+        await interaction.followup.send("❌ Code cannot be empty!", ephemeral=True)
         return
 
     random_digits = "".join(random.choices(string.digits, k=4)) if include_numbers else None
     reward_msg = f" with reward {role.mention}" if role else ""
-    await interaction.response.send_message(f"✅ Code creation started in {target_channel.mention}{reward_msg}!", ephemeral=True)
+    await interaction.followup.send(f"✅ Code creation started in {target_channel.mention}{reward_msg}!", ephemeral=True)
 
     sections = split_phrase(clean_code)
     await process_code_creation(
@@ -486,28 +501,30 @@ async def createriddle_slash(
     role: discord.Role | None = None,
     channel: discord.TextChannel | None = None
 ):
+    await interaction.response.defer(ephemeral=True)
+
     if interaction.user.id in blacklisted_users:
-        await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
+        await interaction.followup.send("🚫 You are blacklisted from using bot commands!", ephemeral=True)
         return
 
     if not user_can_manage_codes(interaction.user, interaction.guild):
-        await interaction.response.send_message("❌ You do not have permission to create riddles!", ephemeral=True)
+        await interaction.followup.send("❌ You do not have permission to create riddles!", ephemeral=True)
         return
 
     target_channel = channel or interaction.channel
     if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
-        await interaction.response.send_message("❌ Invalid channel destination!", ephemeral=True)
+        await interaction.followup.send("❌ Invalid channel destination!", ephemeral=True)
         return
 
     clean_question = question.strip()
     clean_answer = answer.strip()
 
     if not clean_question or not clean_answer:
-        await interaction.response.send_message("❌ Question and answer cannot be empty!", ephemeral=True)
+        await interaction.followup.send("❌ Question and answer cannot be empty!", ephemeral=True)
         return
 
     reward_msg = f" with reward {role.mention}" if role else ""
-    await interaction.response.send_message(f"✅ Riddle created in {target_channel.mention}{reward_msg}!", ephemeral=True)
+    await interaction.followup.send(f"✅ Riddle created in {target_channel.mention}{reward_msg}!", ephemeral=True)
 
     await process_riddle_creation(target_channel, clean_question, clean_answer, interaction.user, reward_role=role)
 
