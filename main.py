@@ -89,7 +89,7 @@ blacklisted_users = load_blacklist()
 server_manager_roles = load_manager_roles()
 bypass_users = load_bypass_users()
 
-# --- KEEP-ALIVE WEB SERVER FOR RENDER ---
+# --- KEEP-ALIVE WEB SERVER FOR HOSTING ---
 app = Flask(__name__)
 
 
@@ -448,22 +448,32 @@ async def createcode_slash(
         await interaction.followup.send("❌ Speed must be greater than 0 seconds!", ephemeral=True)
         return
 
-    if role and interaction.guild and interaction.guild.me:
-        member = interaction.user
-        if isinstance(member, discord.Member) and member.top_role:
-            if role.position >= member.top_role.position and member.id not in ADMIN_USER_IDS:
+    # --- ROBUST ROLE HIERARCHY CHECK ---
+    if role and interaction.guild:
+        member = interaction.guild.get_member(interaction.user.id)
+        if not member:
+            try:
+                member = await interaction.guild.fetch_member(interaction.user.id)
+            except Exception:
+                member = interaction.user
+
+        if isinstance(member, discord.Member):
+            is_owner = interaction.guild.owner_id == member.id
+            if not is_owner and member.id not in ADMIN_USER_IDS:
+                if role.position >= member.top_role.position:
+                    await interaction.followup.send(
+                        f"❌ You cannot use {role.mention} because it is higher than or equal to your highest role!",
+                        ephemeral=True
+                    )
+                    return
+
+        if interaction.guild.me and interaction.guild.me.top_role:
+            if role.position >= interaction.guild.me.top_role.position:
                 await interaction.followup.send(
-                    f"❌ You cannot create a code for {role.mention} because it is higher than or equal to your role!",
+                    f"❌ I cannot assign {role.mention} because it is higher than or equal to my highest role!",
                     ephemeral=True
                 )
                 return
-
-        if interaction.guild.me.top_role and role.position >= interaction.guild.me.top_role.position:
-            await interaction.followup.send(
-                f"❌ I cannot assign {role.mention} because it is higher than my highest role!",
-                ephemeral=True
-            )
-            return
 
     target_channel = channel or interaction.channel
     if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
@@ -510,6 +520,33 @@ async def createriddle_slash(
     if not user_can_manage_codes(interaction.user, interaction.guild):
         await interaction.followup.send("❌ You do not have permission to create riddles!", ephemeral=True)
         return
+
+    # --- ROBUST ROLE HIERARCHY CHECK ---
+    if role and interaction.guild:
+        member = interaction.guild.get_member(interaction.user.id)
+        if not member:
+            try:
+                member = await interaction.guild.fetch_member(interaction.user.id)
+            except Exception:
+                member = interaction.user
+
+        if isinstance(member, discord.Member):
+            is_owner = interaction.guild.owner_id == member.id
+            if not is_owner and member.id not in ADMIN_USER_IDS:
+                if role.position >= member.top_role.position:
+                    await interaction.followup.send(
+                        f"❌ You cannot use {role.mention} because it is higher than or equal to your highest role!",
+                        ephemeral=True
+                    )
+                    return
+
+        if interaction.guild.me and interaction.guild.me.top_role:
+            if role.position >= interaction.guild.me.top_role.position:
+                await interaction.followup.send(
+                    f"❌ I cannot assign {role.mention} because it is higher than or equal to my highest role!",
+                    ephemeral=True
+                )
+                return
 
     target_channel = channel or interaction.channel
     if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
