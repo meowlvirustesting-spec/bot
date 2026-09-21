@@ -123,6 +123,14 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 active_codes = {}
 
 
+# --- GLOBAL APP COMMAND ERROR HANDLER ---
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    print(f"Error in slash command '{interaction.command.name if interaction.command else 'Unknown'}': {error}")
+    if not interaction.response.is_done():
+        await interaction.response.send_message("❌ An error occurred while processing this command.", ephemeral=True)
+
+
 # --- REDEEM PANEL MODAL & BUTTON ---
 class RedeemModal(discord.ui.Modal, title="Redeem DLC Code"):
     code_input = discord.ui.TextInput(
@@ -274,7 +282,6 @@ async def process_code_creation(
         "start_time": None,
     }
 
-    # If requested, send section count prior to reveal sequence starting
     if show_sections:
         await target_channel.send(f"This code will be split into **{len(sections)}** sections!")
 
@@ -315,7 +322,6 @@ async def process_code_creation(
     embed.color = discord.Color.green()
     await message.edit(embed=embed)
 
-    # Separate message sequence for additional digits
     if random_digits:
         await asyncio.sleep(random.uniform(3.0, 10.0))
         await target_channel.send("The code isn't over yet...")
@@ -834,6 +840,7 @@ async def main():
             await asyncio.sleep(10)
 
 
+# --- RENDER EXECUTION ENTRY POINT ---
 if __name__ == "__main__":
     keep_alive()
     asyncio.run(main())
