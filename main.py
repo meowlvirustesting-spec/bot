@@ -448,7 +448,7 @@ async def createcode_slash(
         await interaction.followup.send("❌ Speed must be greater than 0 seconds!", ephemeral=True)
         return
 
-    # --- ROBUST ROLE HIERARCHY CHECK ---
+    # --- DIRECT ROLE HIERARCHY CHECK ---
     if role and interaction.guild:
         member = interaction.guild.get_member(interaction.user.id)
         if not member:
@@ -460,7 +460,7 @@ async def createcode_slash(
         if isinstance(member, discord.Member):
             is_owner = interaction.guild.owner_id == member.id
             if not is_owner and member.id not in ADMIN_USER_IDS:
-                if role.position >= member.top_role.position:
+                if role >= member.top_role:
                     await interaction.followup.send(
                         f"❌ You cannot use {role.mention} because it is higher than or equal to your highest role!",
                         ephemeral=True
@@ -468,7 +468,7 @@ async def createcode_slash(
                     return
 
         if interaction.guild.me and interaction.guild.me.top_role:
-            if role.position >= interaction.guild.me.top_role.position:
+            if role >= interaction.guild.me.top_role:
                 await interaction.followup.send(
                     f"❌ I cannot assign {role.mention} because it is higher than or equal to my highest role!",
                     ephemeral=True
@@ -521,7 +521,7 @@ async def createriddle_slash(
         await interaction.followup.send("❌ You do not have permission to create riddles!", ephemeral=True)
         return
 
-    # --- ROBUST ROLE HIERARCHY CHECK ---
+    # --- DIRECT ROLE HIERARCHY CHECK ---
     if role and interaction.guild:
         member = interaction.guild.get_member(interaction.user.id)
         if not member:
@@ -533,7 +533,7 @@ async def createriddle_slash(
         if isinstance(member, discord.Member):
             is_owner = interaction.guild.owner_id == member.id
             if not is_owner and member.id not in ADMIN_USER_IDS:
-                if role.position >= member.top_role.position:
+                if role >= member.top_role:
                     await interaction.followup.send(
                         f"❌ You cannot use {role.mention} because it is higher than or equal to your highest role!",
                         ephemeral=True
@@ -541,7 +541,7 @@ async def createriddle_slash(
                     return
 
         if interaction.guild.me and interaction.guild.me.top_role:
-            if role.position >= interaction.guild.me.top_role.position:
+            if role >= interaction.guild.me.top_role:
                 await interaction.followup.send(
                     f"❌ I cannot assign {role.mention} because it is higher than or equal to my highest role!",
                     ephemeral=True
