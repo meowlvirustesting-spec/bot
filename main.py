@@ -13,17 +13,17 @@ from discord.ext import commands
 from discord import app_commands
 
 # --- CONFIGURATION ---
-BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"  # Permanent correct answers for role holders
+BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"
 DLC_IMAGE_URL = "https://cdn.discordapp.com/attachments/1546415351049228410/1546415372213690368/Untitled106_20260907020000.png?ex=6a9fb30b&is=6a9e618b&hm=65715670c974b258a8cff733a2f40ac6fc99801dfffe891df56e3fa07de32b3f&"
 
-# Global Bot Admins (Override permissions on any server)
+# Global Bot Admins
 ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
 
 # Dynamic In-Memory States
-active_bypass_code = None        # Holds the custom bypass code set by an admin
-active_bypass_creator_id = None  # Holds the user ID of the admin who created the active DLC code
-active_bypass_max_claims = None  # None = Unlimited claims, otherwise integer limit
-redeemed_users = set()           # Set of user IDs who have already claimed the current active DLC code
+active_bypass_code = None
+active_bypass_creator_id = None
+active_bypass_max_claims = None
+redeemed_users = set()
 
 # --- PERSISTENT FILE STORAGE LOGIC ---
 BLACKLIST_FILE = "blacklist.json"
@@ -31,7 +31,6 @@ MANAGERS_FILE = "server_managers.json"
 BYPASS_FILE = "bypass_users.json"
 
 
-# 1. Blacklist persistence
 def load_blacklist() -> set[int]:
     if os.path.exists(BLACKLIST_FILE):
         try:
@@ -42,6 +41,7 @@ def load_blacklist() -> set[int]:
             print(f"Error loading blacklist file: {e}")
     return set()
 
+
 def save_blacklist(blacklist_set: set[int]):
     try:
         with open(BLACKLIST_FILE, "w") as f:
@@ -50,7 +50,6 @@ def save_blacklist(blacklist_set: set[int]):
         print(f"Error saving blacklist file: {e}")
 
 
-# 2. Server Code Manager Roles persistence (Guild ID -> Set of Role IDs)
 def load_manager_roles() -> dict[int, set[int]]:
     if os.path.exists(MANAGERS_FILE):
         try:
@@ -61,6 +60,7 @@ def load_manager_roles() -> dict[int, set[int]]:
             print(f"Error loading manager roles file: {e}")
     return {}
 
+
 def save_manager_roles(managers_dict: dict[int, set[int]]):
     try:
         serializable_data = {str(k): list(v) for k, v in managers_dict.items()}
@@ -70,7 +70,6 @@ def save_manager_roles(managers_dict: dict[int, set[int]]):
         print(f"Error saving manager roles file: {e}")
 
 
-# 3. Code Bypass Users persistence
 def load_bypass_users() -> set[int]:
     if os.path.exists(BYPASS_FILE):
         try:
@@ -81,6 +80,7 @@ def load_bypass_users() -> set[int]:
             print(f"Error loading bypass users file: {e}")
     return set()
 
+
 def save_bypass_users(bypass_set: set[int]):
     try:
         with open(BYPASS_FILE, "w") as f:
@@ -89,12 +89,11 @@ def save_bypass_users(bypass_set: set[int]):
         print(f"Error saving bypass users file: {e}")
 
 
-# Load persistent variables into memory at startup
 blacklisted_users = load_blacklist()
 server_manager_roles = load_manager_roles()
 bypass_users = load_bypass_users()
 
-# --- KEEP-ALIVE WEB SERVER ---
+# --- KEEP-ALIVE WEB SERVER FOR RENDER ---
 app = Flask("")
 
 
@@ -123,7 +122,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 active_codes = {}
 
 
-# --- GLOBAL APP COMMAND ERROR HANDLER ---
 @bot.tree.error
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     print(f"Error in slash command '{interaction.command.name if interaction.command else 'Unknown'}': {error}")
@@ -226,7 +224,7 @@ def can_manage_codes():
     async def predicate(ctx):
         if ctx.author.id in ADMIN_USER_IDS:
             return True
-        if isinstance(ctx.author, discord.Member):
+        if isinstance(ctx.author, discord.Member) and ctx.guild:
             if ctx.author.guild_permissions.administrator:
                 return True
             assigned_role_ids = server_manager_roles.get(ctx.guild.id, set())
@@ -248,7 +246,7 @@ def user_can_manage_codes(member: discord.Member | discord.User, guild: discord.
     return False
 
 
-# --- DYNAMIC WORD & CHUNK SPLITTING ---
+# --- HELPER FUNCTIONS ---
 def split_phrase(text: str) -> list[str]:
     if " " in text:
         return text.split()
@@ -261,9 +259,8 @@ def split_phrase(text: str) -> list[str]:
     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
 
-# --- CODE & RIDDLE CREATION HELPERS ---
 async def process_code_creation(
-    target_channel: discord.TextChannel,
+    target_channel: discord.abc.Messageable,
     clean_code: str,
     sections: list[str],
     creator: discord.User | discord.Member,
@@ -290,7 +287,9 @@ async def process_code_creation(
         description=f"**Created by:** {creator.mention}\n\n*Generating Code...*",
         color=discord.Color.blue(),
     )
-    embed.set_thumbnail(url=creator.display_avatar.url)
+    if hasattr(creator, "display_avatar"):
+        embed.set_thumbnail(url=creator.display_avatar.url)
+
     message = await target_channel.send(embed=embed)
 
     displayed_text = ""
@@ -316,8 +315,10 @@ async def process_code_creation(
 
     embed.title = "Role Code Created!" if reward_role else "Code Created!"
     reward_text = f"\n**Reward:** {reward_role.mention}" if reward_role else ""
-    if reward_text and not embed.description.endswith(reward_text):
-        embed.description += reward_text
+    
+    current_desc = embed.description or ""
+    if reward_text and not current_desc.endswith(reward_text):
+        embed.description = current_desc + reward_text
 
     embed.color = discord.Color.green()
     await message.edit(embed=embed)
@@ -331,7 +332,7 @@ async def process_code_creation(
 
 
 async def process_riddle_creation(
-    target_channel: discord.TextChannel,
+    target_channel: discord.abc.Messageable,
     question: str,
     answer: str,
     creator: discord.User | discord.Member,
@@ -357,17 +358,18 @@ async def process_riddle_creation(
         ),
         color=discord.Color.gold(),
     )
-    embed.set_thumbnail(url=creator.display_avatar.url)
+    if hasattr(creator, "display_avatar"):
+        embed.set_thumbnail(url=creator.display_avatar.url)
     await target_channel.send(embed=embed)
 
 
 # --- SLASH COMMANDS ---
-@bot.tree.command(name="announcement", description="Sends an announcement embed with image or video support (Bot Admin Only)")
+@bot.tree.command(name="announcement", description="Sends an announcement embed (Bot Admin Only)")
 @app_commands.describe(
     title="The title of the announcement",
     description="Optional body text below the title",
     media="Optional image or video file to attach",
-    channel="The channel to post the announcement in (defaults to current channel)"
+    channel="The channel to post the announcement in"
 )
 async def announcement_slash(
     interaction: discord.Interaction,
@@ -385,19 +387,22 @@ async def announcement_slash(
         return
 
     target_channel = channel or interaction.channel
+    if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+        await interaction.response.send_message("❌ Invalid target channel!", ephemeral=True)
+        return
 
     embed = discord.Embed(
         title=title,
         description=description,
         color=discord.Color.purple()
     )
-    embed.set_thumbnail(url=interaction.user.display_avatar.url)
+    if hasattr(interaction.user, "display_avatar"):
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
     file_to_send = None
     if media:
         file_to_send = await media.to_file()
         content_type = media.content_type or ""
-        
         if content_type.startswith("image/"):
             embed.set_image(url=f"attachment://{media.filename}")
 
@@ -411,14 +416,7 @@ async def announcement_slash(
         await interaction.response.send_message(f"❌ I don't have permission to send messages in {target_channel.mention}.", ephemeral=True)
 
 
-@bot.tree.command(name="setcodemanagerrole", description="Sets role(s) allowed to create codes for this server (Server Admin Only).")
-@app_commands.describe(
-    role1="Primary role allowed to create codes",
-    role2="Additional role allowed to create codes (optional)",
-    role3="Additional role allowed to create codes (optional)",
-    role4="Additional role allowed to create codes (optional)",
-    role5="Additional role allowed to create codes (optional)"
-)
+@bot.tree.command(name="setcodemanagerrole", description="Sets role(s) allowed to create codes for this server.")
 async def setcodemanagerrole_slash(
     interaction: discord.Interaction,
     role1: discord.Role,
@@ -432,11 +430,10 @@ async def setcodemanagerrole_slash(
         return
 
     if not user_is_server_admin(interaction.user):
-        await interaction.response.send_message("❌ You need the **Manage Server** or **Administrator** permission to set manager roles!", ephemeral=True)
+        await interaction.response.send_message("❌ You need **Manage Server** or **Administrator** permissions!", ephemeral=True)
         return
 
     roles_list = [r for r in [role1, role2, role3, role4, role5] if r is not None]
-    
     server_manager_roles[interaction.guild.id] = {role.id for role in roles_list}
     save_manager_roles(server_manager_roles)
 
@@ -447,15 +444,7 @@ async def setcodemanagerrole_slash(
     )
 
 
-@bot.tree.command(name="createcode", description="Creates a standard or role-reward code embed in a channel.")
-@app_commands.describe(
-    code="The text code for users to type",
-    speed="Delay in seconds between reveals (default: 1.3)",
-    include_numbers="Set to True to add a random 4-digit number at the end",
-    show_sections="Set to True to state how many sections the code is split into before reveal",
-    role="Optional reward role to assign when claimed",
-    channel="The channel to display the code in (defaults to current channel)"
-)
+@bot.tree.command(name="createcode", description="Creates a standard or role-reward code embed.")
 async def createcode_slash(
     interaction: discord.Interaction, 
     code: str, 
@@ -477,9 +466,9 @@ async def createcode_slash(
         await interaction.response.send_message("❌ Speed must be greater than 0 seconds!", ephemeral=True)
         return
 
-    if role and interaction.guild:
+    if role and interaction.guild and interaction.guild.me:
         member = interaction.user
-        if isinstance(member, discord.Member):
+        if isinstance(member, discord.Member) and member.top_role:
             if role.position >= member.top_role.position and member.id not in ADMIN_USER_IDS:
                 await interaction.response.send_message(
                     f"❌ You cannot create a code for {role.mention} because it is higher than or equal to your role!",
@@ -487,7 +476,7 @@ async def createcode_slash(
                 )
                 return
 
-        if role.position >= interaction.guild.me.top_role.position:
+        if interaction.guild.me.top_role and role.position >= interaction.guild.me.top_role.position:
             await interaction.response.send_message(
                 f"❌ I cannot assign {role.mention} because it is higher than my highest role!",
                 ephemeral=True
@@ -495,16 +484,17 @@ async def createcode_slash(
             return
 
     target_channel = channel or interaction.channel
+    if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+        await interaction.response.send_message("❌ Invalid channel destination!", ephemeral=True)
+        return
+
     clean_code = code.strip()
 
     if not clean_code:
         await interaction.response.send_message("❌ Code cannot be empty!", ephemeral=True)
         return
 
-    random_digits = None
-    if include_numbers:
-        random_digits = "".join(random.choices(string.digits, k=4))
-
+    random_digits = "".join(random.choices(string.digits, k=4)) if include_numbers else None
     reward_msg = f" with reward {role.mention}" if role else ""
     await interaction.response.send_message(f"✅ Code creation started in {target_channel.mention}{reward_msg}!", ephemeral=True)
 
@@ -522,12 +512,6 @@ async def createcode_slash(
 
 
 @bot.tree.command(name="createriddle", description="Creates a standard or role-reward riddle challenge.")
-@app_commands.describe(
-    question="The question or riddle prompt",
-    answer="The exact answer users must type to solve it",
-    role="Optional reward role to assign when solved",
-    channel="The channel to post the riddle in (defaults to current channel)"
-)
 async def createriddle_slash(
     interaction: discord.Interaction,
     question: str,
@@ -543,24 +527,11 @@ async def createriddle_slash(
         await interaction.response.send_message("❌ You do not have permission to create riddles!", ephemeral=True)
         return
 
-    if role and interaction.guild:
-        member = interaction.user
-        if isinstance(member, discord.Member):
-            if role.position >= member.top_role.position and member.id not in ADMIN_USER_IDS:
-                await interaction.response.send_message(
-                    f"❌ You cannot create a riddle for {role.mention} because it is higher than or equal to your role!",
-                    ephemeral=True
-                )
-                return
-
-        if role.position >= interaction.guild.me.top_role.position:
-            await interaction.response.send_message(
-                f"❌ I cannot assign {role.mention} because it is higher than my highest role!",
-                ephemeral=True
-            )
-            return
-
     target_channel = channel or interaction.channel
+    if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+        await interaction.response.send_message("❌ Invalid channel destination!", ephemeral=True)
+        return
+
     clean_question = question.strip()
     clean_answer = answer.strip()
 
@@ -574,15 +545,10 @@ async def createriddle_slash(
     await process_riddle_creation(target_channel, clean_question, clean_answer, interaction.user, reward_role=role)
 
 
-@bot.tree.command(name="givecodebypass", description="Grants code bypass permissions directly to a user (Bot Admin Only)")
-@app_commands.describe(user="The user to receive permanent code bypass permissions")
+@bot.tree.command(name="givecodebypass", description="Grants code bypass permissions to a user (Bot Admin Only)")
 async def givecodebypass(interaction: discord.Interaction, user: discord.User | discord.Member):
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
-        return
-
-    if interaction.user.id in blacklisted_users:
-        await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
         return
 
     if user.id in bypass_users:
@@ -592,22 +558,15 @@ async def givecodebypass(interaction: discord.Interaction, user: discord.User | 
     bypass_users.add(user.id)
     save_bypass_users(bypass_users)
 
-    await interaction.response.send_message(f"🔓 Successfully granted code bypass permissions to {user.mention}!", ephemeral=True)
+    await interaction.response.send_message(f"🔓 Granted code bypass permissions to {user.mention}!", ephemeral=True)
 
 
 @bot.tree.command(name="generatedlc", description="Generates a random DLC code (Bot Admin Only)")
-@app_commands.describe(
-    max_claims="Optional maximum claims (leave empty for unlimited)"
-)
 async def generatedlc(interaction: discord.Interaction, max_claims: int | None = None):
     global active_bypass_code, active_bypass_creator_id, active_bypass_max_claims, redeemed_users
 
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
-        return
-
-    if interaction.user.id in blacklisted_users:
-        await interaction.response.send_message("🚫 You are blacklisted from using bot commands!", ephemeral=True)
         return
 
     if max_claims is not None and max_claims < 1:
@@ -623,41 +582,38 @@ async def generatedlc(interaction: discord.Interaction, max_claims: int | None =
     active_bypass_max_claims = max_claims
     redeemed_users.clear()
 
-    if max_claims is None:
-        claim_text = "♾️ Unlimited"
-    elif max_claims == 1:
-        claim_text = "1 person"
-    else:
-        claim_text = f"{max_claims} people"
+    claim_text = "♾️ Unlimited" if max_claims is None else f"{max_claims} person(s)"
 
     await interaction.response.send_message(
-        f"🎁 **Generated DLC Code:** `{dlc_code}`\n👥 **Max Claims:** {claim_text}\n✅ *This code is active until claimed via the Redeem Panel!*", 
+        f"🎁 **Generated DLC Code:** `{dlc_code}`\n👥 **Max Claims:** {claim_text}", 
         ephemeral=True
     )
 
 
-@bot.tree.command(name="sendredeempanel", description="Posts an interactive redemption panel in the channel (Bot Admin Only)")
-@app_commands.describe(channel="The channel to send the redemption panel to (defaults to current channel)")
+@bot.tree.command(name="sendredeempanel", description="Posts an interactive redemption panel (Bot Admin Only)")
 async def sendredeempanel(interaction: discord.Interaction, channel: discord.TextChannel | None = None):
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
         return
 
     target_channel = channel or interaction.channel
+    if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+        await interaction.response.send_message("❌ Invalid target channel!", ephemeral=True)
+        return
 
     embed = discord.Embed(
         title="🎁 DLC Code Redemption Center",
         description="Click the button below to open the code entry prompt and redeem your DLC code!",
         color=discord.Color.gold()
     )
-    embed.set_thumbnail(url=interaction.user.display_avatar.url)
+    if hasattr(interaction.user, "display_avatar"):
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
     await target_channel.send(embed=embed, view=RedeemPanelView())
-    await interaction.response.send_message(f"✅ Redemption panel successfully sent to {target_channel.mention}!", ephemeral=True)
+    await interaction.response.send_message(f"✅ Redemption panel sent to {target_channel.mention}!", ephemeral=True)
 
 
-@bot.tree.command(name="deletecodebypassperms", description="Removes code bypass permissions from a specified user or all holders (Bot Admin Only)")
-@app_commands.describe(user="The user to remove bypass permissions from (leave empty to clear all)")
+@bot.tree.command(name="deletecodebypassperms", description="Removes code bypass permissions from a user (Bot Admin Only)")
 async def deletecodebypassperms(interaction: discord.Interaction, user: discord.User | discord.Member | None = None):
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
@@ -665,12 +621,12 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
 
     if user:
         if user.id not in bypass_users:
-            await interaction.response.send_message(f"⚠️ {user.mention} does not currently have active code bypass permissions.", ephemeral=True)
+            await interaction.response.send_message(f"⚠️ {user.mention} does not have active code bypass permissions.", ephemeral=True)
             return
         
         bypass_users.remove(user.id)
         save_bypass_users(bypass_users)
-        await interaction.response.send_message(f"🛑 Successfully removed code bypass permissions from {user.mention}!", ephemeral=True)
+        await interaction.response.send_message(f"🛑 Removed code bypass permissions from {user.mention}!", ephemeral=True)
     else:
         if not bypass_users:
             await interaction.response.send_message("⚠️ No users currently have code bypass permissions.", ephemeral=True)
@@ -679,10 +635,10 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
         count = len(bypass_users)
         bypass_users.clear()
         save_bypass_users(bypass_users)
-        await interaction.response.send_message(f"🛑 Successfully removed code bypass permissions from all {count} user(s)!", ephemeral=True)
+        await interaction.response.send_message(f"🛑 Removed code bypass permissions from all {count} user(s)!", ephemeral=True)
 
 
-# --- PREFIX COMMANDS ---
+# --- PREFIX COMMANDS & LISTENERS ---
 @bot.command()
 @is_not_blacklisted()
 @is_admin_or_owner()
@@ -692,7 +648,7 @@ async def blacklist(ctx, user: discord.User | discord.Member):
         return
     blacklisted_users.add(user.id)
     save_blacklist(blacklisted_users)
-    await ctx.send(f"🚫 {user.mention} has been blacklisted from using the bot!")
+    await ctx.send(f"🚫 {user.mention} has been blacklisted!")
 
 
 @bot.command()
@@ -705,58 +661,6 @@ async def unblacklist(ctx, user: discord.User | discord.Member):
     blacklisted_users.remove(user.id)
     save_blacklist(blacklisted_users)
     await ctx.send(f"✅ {user.mention} has been removed from the blacklist!")
-
-
-@blacklist.error
-@unblacklist.error
-async def blacklist_error(ctx, error):
-    if isinstance(error, commands.CheckFailure):
-        await ctx.send("❌ You do not have permission to use blacklist commands!", delete_after=5)
-
-
-@bot.command()
-@is_not_blacklisted()
-@can_manage_codes()
-async def cmds(ctx):
-    role_ids = server_manager_roles.get(ctx.guild.id, set())
-    roles = [ctx.guild.get_role(rid) for rid in role_ids if ctx.guild.get_role(rid)]
-    
-    if roles:
-        role_text = ", ".join([f"**{r.name}**" for r in roles])
-    else:
-        role_text = "Configured Code Manager Role(s) or Server Admin"
-
-    embed = discord.Embed(
-        title="🤖 Bot Commands List",
-        description=f"Commands restricted to {role_text}:",
-        color=discord.Color.purple(),
-    )
-    embed.add_field(name="`/createcode <code> [speed] [include_numbers] [show_sections] [role] [channel]`", value="Creates a standard or role-reward code embed via slash command.", inline=False)
-    embed.add_field(name="`/createriddle <question> <answer> [role] [channel]`", value="Creates a standard or role-reward riddle challenge via slash command.", inline=False)
-    embed.add_field(name="`/setcodemanagerrole <role1> [role2 ...]`", value="Sets role(s) allowed to create codes for this server (Server Admins only).", inline=False)
-    embed.add_field(name="`/givecodebypass <@user>`", value="Grants code bypass permissions directly to a user (Bot Admin only).", inline=False)
-    embed.add_field(name="`/generatedlc [max_claims]`", value="Generates a random DLC code (leave max_claims empty for unlimited).", inline=False)
-    embed.add_field(name="`/sendredeempanel [channel]`", value="Posts an interactive redemption panel with a modal pop-up (Bot Admin only).", inline=False)
-    embed.add_field(name="`/deletecodebypassperms [@user]`", value="Removes code bypass permissions from a user or clears all users if left empty (Bot Admin only).", inline=False)
-    embed.add_field(name="`/announcement <title> [description] [media] [channel]`", value="Sends an announcement embed with purple color and media support (Bot Admin only).", inline=False)
-    embed.add_field(name="`!blacklist <@user>`", value="Blacklists a user from redeeming codes (Bot Admin only).", inline=False)
-    embed.add_field(name="`!unblacklist <@user>`", value="Removes a user from the blacklist (Bot Admin only).", inline=False)
-    await ctx.send(embed=embed, allowed_mentions=discord.AllowedMentions.none())
-
-
-# --- CHAT LISTENER & GLOBAL ERROR LOGGING ---
-@bot.event
-async def on_command_error(ctx, error):
-    if hasattr(ctx.command, 'on_error'):
-        return
-
-    ignored = (commands.CommandNotFound,)
-    error = getattr(error, 'original', error)
-
-    if isinstance(error, ignored):
-        return
-
-    print(f"Unhandled error in command {ctx.command}: {error}")
 
 
 @bot.event
@@ -799,29 +703,29 @@ async def on_message(message):
 
                 time_str = f" in **{elapsed_seconds} seconds**"
 
-                if role_id and isinstance(message.author, discord.Member):
+                if role_id and isinstance(message.author, discord.Member) and message.guild:
                     role = message.guild.get_role(role_id)
                     if role:
                         try:
                             await message.author.add_roles(role)
                             await message.channel.send(
-                                f"🎉 {message.author.mention} redeemed the {challenge_type} first{time_str} and won the **{role.name}** role! The code is now closed."
+                                f"🎉 {message.author.mention} redeemed the {challenge_type} first{time_str} and won the **{role.name}** role!"
                             )
                         except discord.Forbidden:
                             await message.channel.send(
                                 f"{message.author.mention} Correct answer{time_str}, but I lack permissions to grant the role!"
                             )
                     else:
-                        await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}{time_str}! The code is now closed.")
+                        await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}{time_str}!")
                 else:
-                    await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}{time_str}! The code is now closed.")
+                    await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}{time_str}!")
 
 
-# --- RUN BOT WITH ASYNC RECONNECT LOOP ---
+# --- RUN BOT ---
 async def main():
     token = os.getenv("DISCORD_TOKEN")
     if not token:
-        print("Error: DISCORD_TOKEN is missing!")
+        print("Error: DISCORD_TOKEN environment variable is missing!")
         return
 
     while True:
@@ -830,7 +734,7 @@ async def main():
                 await bot.start(token)
         except discord.errors.HTTPException as e:
             if e.status == 429:
-                print("Rate limited by Discord/Cloudflare. Retrying in 60 seconds...")
+                print("Rate limited by Discord. Retrying in 60 seconds...")
                 await asyncio.sleep(60)
             else:
                 print(f"HTTP Exception: {e}")
@@ -840,7 +744,6 @@ async def main():
             await asyncio.sleep(10)
 
 
-# --- RENDER EXECUTION ENTRY POINT ---
 if __name__ == "__main__":
     keep_alive()
     asyncio.run(main())
