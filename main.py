@@ -3,10 +3,9 @@ print("=== BOT SCRIPT IS STARTING NOW ===", flush=True)
 # pyright: reportGeneralTypeIssues=false
 
 import os
-import re
 import json
 import asyncio
-import threading
+from threading import Thread
 import time
 import random
 import string
@@ -96,16 +95,16 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Bot is online!"
+    return "Bot is online and running!"
 
 
-def run_server():
+def run_flask():
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
 
 def keep_alive():
-    t = threading.Thread(target=run_server)
+    t = Thread(target=run_flask)
     t.daemon = True
     t.start()
 
@@ -155,20 +154,6 @@ def user_is_server_admin(member: discord.Member | discord.User) -> bool:
     if isinstance(member, discord.Member):
         return member.guild_permissions.manage_guild or member.guild_permissions.administrator
     return False
-
-
-def can_manage_codes():
-    async def predicate(ctx):
-        if ctx.author.id in ADMIN_USER_IDS:
-            return True
-        if isinstance(ctx.author, discord.Member) and ctx.guild:
-            if ctx.author.guild_permissions.administrator:
-                return True
-            assigned_role_ids = server_manager_roles.get(ctx.guild.id, set())
-            if assigned_role_ids:
-                return any(role.id in assigned_role_ids for role in ctx.author.roles)
-        return False
-    return commands.check(predicate)
 
 
 def user_can_manage_codes(member: discord.Member | discord.User, guild: discord.Guild | None) -> bool:
