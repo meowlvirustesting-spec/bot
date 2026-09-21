@@ -600,8 +600,7 @@ async def main():
 
     while True:
         try:
-            async with bot:
-                await bot.start(token)
+            await bot.start(token)
         except discord.errors.HTTPException as e:
             if e.status == 429:
                 print("Rate limited by Discord. Retrying in 60 seconds...", flush=True)
@@ -610,8 +609,12 @@ async def main():
                 print(f"HTTP Exception: {e}", flush=True)
                 await asyncio.sleep(10)
         except Exception as e:
-            print(f"Unexpected connection error: {e}", flush=True)
+            print(f"Unexpected connection error: {e}", flush=True)[span_1](start_span)[span_1](end_span)
             await asyncio.sleep(10)
+        finally:
+            if not bot.is_closed():
+                await bot.close()
+            await asyncio.sleep(5)
 
 
 if __name__ == "__main__":
