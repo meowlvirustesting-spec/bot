@@ -1,3 +1,7 @@
+print("=== BOT SCRIPT IS STARTING NOW ===", flush=True)
+
+# pyright: reportGeneralTypeIssues=false
+
 import os
 import re
 import json
@@ -103,7 +107,6 @@ def home():
 
 
 def run_server():
-    # Dynamically reads Render's assigned port variable
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
@@ -191,13 +194,13 @@ class RedeemPanelView(discord.ui.View):
 
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user}!")
+    print(f"Logged in as {bot.user}!", flush=True)
     bot.add_view(RedeemPanelView())
     try:
         synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} slash command(s).")
+        print(f"Synced {len(synced)} slash command(s).", flush=True)
     except Exception as e:
-        print(f"Failed to sync slash commands: {e}")
+        print(f"Failed to sync slash commands: {e}", flush=True)
 
 
 # --- PERMISSION CHECKS ---
@@ -261,7 +264,7 @@ def split_phrase(text: str) -> list[str]:
 
 
 async def process_code_creation(
-    target_channel: discord.abc.Messageable,
+    target_channel: discord.TextChannel | discord.Thread | discord.DMChannel,
     clean_code: str,
     sections: list[str],
     creator: discord.User | discord.Member,
@@ -333,7 +336,7 @@ async def process_code_creation(
 
 
 async def process_riddle_creation(
-    target_channel: discord.abc.Messageable,
+    target_channel: discord.TextChannel | discord.Thread | discord.DMChannel,
     question: str,
     answer: str,
     creator: discord.User | discord.Member,
@@ -665,7 +668,7 @@ async def unblacklist(ctx, user: discord.User | discord.Member):
 
 
 @bot.event
-async def on_message(message):
+async def on_message(message: discord.Message):
     if message.author.bot:
         return
 
@@ -726,7 +729,7 @@ async def on_message(message):
 async def main():
     token = os.getenv("DISCORD_TOKEN")
     if not token:
-        print("Error: DISCORD_TOKEN environment variable is missing!")
+        print("Error: DISCORD_TOKEN environment variable is missing!", flush=True)
         return
 
     while True:
@@ -735,13 +738,13 @@ async def main():
                 await bot.start(token)
         except discord.errors.HTTPException as e:
             if e.status == 429:
-                print("Rate limited by Discord. Retrying in 60 seconds...")
+                print("Rate limited by Discord. Retrying in 60 seconds...", flush=True)
                 await asyncio.sleep(60)
             else:
-                print(f"HTTP Exception: {e}")
+                print(f"HTTP Exception: {e}", flush=True)
                 await asyncio.sleep(10)
         except Exception as e:
-            print(f"Unexpected connection error: {e}")
+            print(f"Unexpected connection error: {e}", flush=True)
             await asyncio.sleep(10)
 
 
