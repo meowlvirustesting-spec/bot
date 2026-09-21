@@ -116,6 +116,7 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 active_codes = {}
+is_synced = False  # Track command sync status across reconnects
 
 
 @bot.tree.error
@@ -127,12 +128,15 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 
 @bot.event
 async def on_ready():
+    global is_synced
     print(f"Logged in as {bot.user}!", flush=True)
-    try:
-        synced = await bot.tree.sync()
-        print(f"Synced {len(synced)} slash command(s).", flush=True)
-    except Exception as e:
-        print(f"Failed to sync slash commands: {e}", flush=True)
+    if not is_synced:
+        try:
+            synced = await bot.tree.sync()
+            print(f"Synced {len(synced)} slash command(s).", flush=True)
+            is_synced = True
+        except Exception as e:
+            print(f"Failed to sync slash commands: {e}", flush=True)
 
 
 # --- PERMISSION CHECKS ---
@@ -654,7 +658,7 @@ async def main():
                 print(f"HTTP Exception: {e}", flush=True)
                 await asyncio.sleep(10)
         except Exception as e:
-            print(f"Unexpected connection error: {e}", flush=True)[span_0](start_span)[span_0](end_span)
+            print(f"Unexpected connection error: {e}", flush=True)[span_1](start_span)[span_1](end_span)
             await asyncio.sleep(10)
         finally:
             if not bot.is_closed():
