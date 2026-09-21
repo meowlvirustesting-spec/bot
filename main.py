@@ -18,21 +18,13 @@ from discord import app_commands
 
 # --- CONFIGURATION ---
 BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"
-DLC_IMAGE_URL = "https://cdn.discordapp.com/attachments/1546415351049228410/1546415372213690368/Untitled106_20260907020000.png"
 
 # Global Bot Admins
 ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
 
-# Dynamic In-Memory States
-active_bypass_code = None
-active_bypass_creator_id = None
-active_bypass_max_claims = None
-redeemed_users = set()
-
 # --- PERSISTENT FILE STORAGE LOGIC ---
 BLACKLIST_FILE = "blacklist.json"
 MANAGERS_FILE = "server_managers.json"
-BYPASS_FILE = "bypass_users.json"
 
 
 def load_blacklist() -> set[int]:
@@ -74,28 +66,8 @@ def save_manager_roles(managers_dict: dict[int, set[int]]):
         print(f"Error saving manager roles file: {e}")
 
 
-def load_bypass_users() -> set[int]:
-    if os.path.exists(BYPASS_FILE):
-        try:
-            with open(BYPASS_FILE, "r") as f:
-                data = json.load(f)
-                return set(data)
-        except Exception as e:
-            print(f"Error loading bypass users file: {e}")
-    return set()
-
-
-def save_bypass_users(bypass_set: set[int]):
-    try:
-        with open(BYPASS_FILE, "w") as f:
-            json.dump(list(bypass_set), f, indent=4)
-    except Exception as e:
-        print(f"Error saving bypass users file: {e}")
-
-
 blacklisted_users = load_blacklist()
 server_manager_roles = load_manager_roles()
-bypass_users = load_bypass_users()
 
 # --- KEEP-ALIVE WEB SERVER FOR RENDER ---
 app = Flask(__name__)
@@ -133,69 +105,9 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         await interaction.response.send_message("❌ An error occurred while processing this command.", ephemeral=True)
 
 
-# --- REDEEM PANEL MODAL & BUTTON ---
-class RedeemModal(discord.ui.Modal, title="Redeem DLC Code"):
-    code_input = discord.ui.TextInput(
-        label="Enter DLC Code",
-        placeholder="e.g. BRADAR-ABCD-1234",
-        required=True,
-        max_length=50
-    )
-
-    async def on_submit(self, interaction: discord.Interaction):
-        global active_bypass_code, active_bypass_creator_id, active_bypass_max_claims
-
-        entered_code = self.code_input.value.strip().lower()
-
-        if interaction.user.id in blacklisted_users:
-            await interaction.response.send_message("🚫 You are blacklisted from redeeming codes!", ephemeral=True)
-            return
-
-        if not active_bypass_code or entered_code != active_bypass_code:
-            await interaction.response.send_message("❌ Invalid or expired DLC code!", ephemeral=True)
-            return
-
-        if interaction.user.id == active_bypass_creator_id:
-            await interaction.response.send_message("⚠️ You cannot redeem your own generated DLC code!", ephemeral=True)
-            return
-
-        if interaction.user.id in redeemed_users:
-            await interaction.response.send_message("⚠️ You have already redeemed this DLC code!", ephemeral=True)
-            return
-
-        redeemed_users.add(interaction.user.id)
-        bypass_users.add(interaction.user.id)
-        save_bypass_users(bypass_users)
-
-        embed = discord.Embed(
-            title="🎁 DLC Code Redeemed!",
-            description=f"🔓 {interaction.user.mention}, you have successfully redeemed code bypass permissions!",
-            color=discord.Color.green()
-        )
-        embed.set_image(url=DLC_IMAGE_URL)
-
-        await interaction.response.send_message(embed=embed)
-
-        if active_bypass_max_claims is not None and len(redeemed_users) >= active_bypass_max_claims:
-            active_bypass_code = None
-            active_bypass_creator_id = None
-            active_bypass_max_claims = None
-            redeemed_users.clear()
-
-
-class RedeemPanelView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-
-    @discord.ui.button(label="Redeem DLC Code", style=discord.ButtonStyle.green, custom_id="redeem_dlc_btn", emoji="🎁")
-    async def redeem_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        await interaction.response.send_modal(RedeemModal())
-
-
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}!", flush=True)
-    bot.add_view(RedeemPanelView())
     try:
         synced = await bot.tree.sync()
         print(f"Synced {len(synced)} slash command(s).", flush=True)
@@ -420,8 +332,8 @@ async def announcement_slash(
         await interaction.response.send_message(f"❌ I don't have permission to send messages in {target_channel.mention}.", ephemeral=True)
 
 
-@bot.tree.command(name="setcodemanagerrole", description="Sets role(s) allowed to create codes for this server.")
-async def setcodemanagerrole_slash(
+@bot.tree.command(name="setcoderole", description="Sets role(s) allowed to create codes for this server.")
+async def setcoderole_slash(
     interaction: discord.Interaction,
     role1: discord.Role,
     role2: discord.Role | None = None,
@@ -549,99 +461,6 @@ async def createriddle_slash(
     await process_riddle_creation(target_channel, clean_question, clean_answer, interaction.user, reward_role=role)
 
 
-@bot.tree.command(name="givecodebypass", description="Grants code bypass permissions to a user (Bot Admin Only)")
-async def givecodebypass(interaction: discord.Interaction, user: discord.User | discord.Member):
-    if interaction.user.id not in ADMIN_USER_IDS:
-        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
-        return
-
-    if user.id in bypass_users:
-        await interaction.response.send_message(f"⚠️ {user.mention} already has code bypass permissions!", ephemeral=True)
-        return
-
-    bypass_users.add(user.id)
-    save_bypass_users(bypass_users)
-
-    await interaction.response.send_message(f"🔓 Granted code bypass permissions to {user.mention}!", ephemeral=True)
-
-
-@bot.tree.command(name="generatedlc", description="Generates a random DLC code (Bot Admin Only)")
-async def generatedlc(interaction: discord.Interaction, max_claims: int | None = None):
-    global active_bypass_code, active_bypass_creator_id, active_bypass_max_claims, redeemed_users
-
-    if interaction.user.id not in ADMIN_USER_IDS:
-        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
-        return
-
-    if max_claims is not None and max_claims < 1:
-        await interaction.response.send_message("❌ Max claims must be at least 1!", ephemeral=True)
-        return
-
-    letters = ''.join(random.choices(string.ascii_uppercase, k=4))
-    numbers = ''.join(random.choices(string.digits, k=4))
-    dlc_code = f"BRADAR-{letters}-{numbers}"
-
-    active_bypass_code = dlc_code.lower()
-    active_bypass_creator_id = interaction.user.id
-    active_bypass_max_claims = max_claims
-    redeemed_users.clear()
-
-    claim_text = "♾️ Unlimited" if max_claims is None else f"{max_claims} person(s)"
-
-    await interaction.response.send_message(
-        f"🎁 **Generated DLC Code:** `{dlc_code}`\n👥 **Max Claims:** {claim_text}", 
-        ephemeral=True
-    )
-
-
-@bot.tree.command(name="sendredeempanel", description="Posts an interactive redemption panel (Bot Admin Only)")
-async def sendredeempanel(interaction: discord.Interaction, channel: discord.TextChannel | None = None):
-    if interaction.user.id not in ADMIN_USER_IDS:
-        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
-        return
-
-    target_channel = channel or interaction.channel
-    if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
-        await interaction.response.send_message("❌ Invalid target channel!", ephemeral=True)
-        return
-
-    embed = discord.Embed(
-        title="🎁 DLC Code Redemption Center",
-        description="Click the button below to open the code entry prompt and redeem your DLC code!",
-        color=discord.Color.gold()
-    )
-    if hasattr(interaction.user, "display_avatar"):
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
-
-    await target_channel.send(embed=embed, view=RedeemPanelView())
-    await interaction.response.send_message(f"✅ Redemption panel sent to {target_channel.mention}!", ephemeral=True)
-
-
-@bot.tree.command(name="deletecodebypassperms", description="Removes code bypass permissions from a user (Bot Admin Only)")
-async def deletecodebypassperms(interaction: discord.Interaction, user: discord.User | discord.Member | None = None):
-    if interaction.user.id not in ADMIN_USER_IDS:
-        await interaction.response.send_message("❌ You do not have permission to use this command!", ephemeral=True)
-        return
-
-    if user:
-        if user.id not in bypass_users:
-            await interaction.response.send_message(f"⚠️ {user.mention} does not have active code bypass permissions.", ephemeral=True)
-            return
-        
-        bypass_users.remove(user.id)
-        save_bypass_users(bypass_users)
-        await interaction.response.send_message(f"🛑 Removed code bypass permissions from {user.mention}!", ephemeral=True)
-    else:
-        if not bypass_users:
-            await interaction.response.send_message("⚠️ No users currently have code bypass permissions.", ephemeral=True)
-            return
-
-        count = len(bypass_users)
-        bypass_users.clear()
-        save_bypass_users(bypass_users)
-        await interaction.response.send_message(f"🛑 Removed code bypass permissions from all {count} user(s)!", ephemeral=True)
-
-
 # --- PREFIX COMMANDS & LISTENERS ---
 @bot.command()
 @is_not_blacklisted()
@@ -693,10 +512,7 @@ async def on_message(message: discord.Message):
             if isinstance(message.author, discord.Member):
                 has_role_bypass = any(role.name == BYPASS_ROLE_NAME for role in message.author.roles)
 
-            has_standalone_bypass = message.author.id in bypass_users
-            has_bypass = has_role_bypass or has_standalone_bypass
-
-            if msg_clean == target_code.lower() or has_bypass:
+            if msg_clean == target_code.lower() or has_role_bypass:
                 start_time = code_data.get("start_time") or time.time()
                 elapsed_seconds = round(time.time() - start_time, 2)
 
