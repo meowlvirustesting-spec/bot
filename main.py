@@ -14,7 +14,7 @@ from discord import app_commands
 
 # --- CONFIGURATION ---
 BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"
-DLC_IMAGE_URL = "https://cdn.discordapp.com/attachments/1546415351049228410/1546415372213690368/Untitled106_20260907020000.png?ex=6a9fb30b&is=6a9e618b&hm=65715670c974b258a8cff733a2f40ac6fc99801dfffe891df56e3fa07de32b3f&"
+DLC_IMAGE_URL = "https://cdn.discordapp.com/attachments/1546415351049228410/1546415372213690368/Untitled106_20260907020000.png"
 
 # Global Bot Admins
 ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
@@ -94,7 +94,7 @@ server_manager_roles = load_manager_roles()
 bypass_users = load_bypass_users()
 
 # --- KEEP-ALIVE WEB SERVER FOR RENDER ---
-app = Flask("")
+app = Flask(__name__)
 
 
 @app.route("/")
@@ -103,6 +103,7 @@ def home():
 
 
 def run_server():
+    # Dynamically reads Render's assigned port variable
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
 
