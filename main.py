@@ -658,11 +658,14 @@ async def main():
                 print(f"HTTP Exception: {e}", flush=True)
                 await asyncio.sleep(10)
         except Exception as e:
-            print(f"Unexpected connection error: {e}", flush=True)[span_1](start_span)[span_1](end_span)
+            print(f"Unexpected connection error: {e}", flush=True)
             await asyncio.sleep(10)
         finally:
-            if not bot.is_closed():
-                await bot.close()
+            try:
+                if not bot.is_closed():
+                    await bot.close()
+            except Exception:
+                pass
             await asyncio.sleep(5)
 
 
