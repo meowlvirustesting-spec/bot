@@ -509,6 +509,51 @@ async def createriddle_slash(
 
 
 # --- PREFIX COMMANDS & LISTENERS ---
+@bot.command(name="cmds")
+@is_not_blacklisted()
+async def cmds_command(ctx):
+    embed = discord.Embed(
+        title="📜 Bot Commands List",
+        description="Here are all available commands for this bot:",
+        color=discord.Color.blue()
+    )
+
+    embed.add_field(
+        name="🎮 Code & Game Commands",
+        value=(
+            "`/createcode` - Creates a code challenge embed in chat.\n"
+            "`/createriddle` - Creates a riddle challenge embed in chat.\n"
+            "`/setcoderole` - Sets roles allowed to manage codes for this server."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="⚡ Admin & Utility Commands",
+        value=(
+            "`/announcement` - Posts an announcement embed with optional media.\n"
+            "`/givecodebypass` - Grants code bypass privileges to a user.\n"
+            "`/deletecodebypassperms` - Removes bypass privileges from a user or all users."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="⚙️ Prefix Commands",
+        value=(
+            "`!cmds` - Display this help menu.\n"
+            "`!blacklist <user>` - Blacklists a user from using the bot.\n"
+            "`!unblacklist <user>` - Unblacklists a user."
+        ),
+        inline=False
+    )
+
+    if hasattr(ctx.author, "display_avatar"):
+        embed.set_footer(text=f"Requested by {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
+
+    await ctx.send(embed=embed)
+
+
 @bot.command()
 @is_not_blacklisted()
 @is_admin_or_owner()
@@ -609,7 +654,7 @@ async def main():
                 print(f"HTTP Exception: {e}", flush=True)
                 await asyncio.sleep(10)
         except Exception as e:
-            print(f"Unexpected connection error: {e}", flush=True)[span_1](start_span)[span_1](end_span)
+            print(f"Unexpected connection error: {e}", flush=True)[span_0](start_span)[span_0](end_span)
             await asyncio.sleep(10)
         finally:
             if not bot.is_closed():
