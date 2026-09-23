@@ -100,7 +100,7 @@ def home():
 
 def run_flask():
     port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 
 def keep_alive():
@@ -196,6 +196,7 @@ async def process_code_creation(
     sections: list[str],
     creator: discord.User | discord.Member,
     reward_role: discord.Role | None = None,
+    reward_text: str | None = None,
     random_digits: str | None = None,
     speed: float = 1.3,
     show_sections: bool = False
@@ -245,11 +246,19 @@ async def process_code_creation(
     active_codes[target_channel.id]["start_time"] = time.time()
 
     embed.title = "Role Code Created!" if reward_role else "Code Created!"
-    reward_text = f"\n**Reward:** {reward_role.mention}" if reward_role else ""
+    
+    # Build reward string parts
+    reward_pieces = []
+    if reward_role:
+        reward_pieces.append(reward_role.mention)
+    if reward_text:
+        reward_pieces.append(reward_text)
+    
+    reward_output = f"\n**Reward:** {' '.join(reward_pieces)}" if reward_pieces else ""
     
     current_desc = embed.description or ""
-    if reward_text and not current_desc.endswith(reward_text):
-        embed.description = current_desc + reward_text
+    if reward_output and not current_desc.endswith(reward_output):
+        embed.description = current_desc + reward_output
 
     embed.color = discord.Color.green()
     await message.edit(embed=embed)
@@ -268,6 +277,7 @@ async def process_riddle_creation(
     answer: str,
     creator: discord.User | discord.Member,
     reward_role: discord.Role | None = None,
+    reward_text: str | None = None,
 ):
     start_timestamp = time.time()
     active_codes[target_channel.id] = {
@@ -278,13 +288,19 @@ async def process_riddle_creation(
         "start_time": start_timestamp,
     }
 
-    reward_text = f"\n**Reward:** {reward_role.mention}" if reward_role else ""
+    reward_pieces = []
+    if reward_role:
+        reward_pieces.append(reward_role.mention)
+    if reward_text:
+        reward_pieces.append(reward_text)
+
+    reward_output = f"\n**Reward:** {' '.join(reward_pieces)}" if reward_pieces else ""
 
     embed = discord.Embed(
         title="🧩 Riddle Challenge!",
         description=(
             f"**Created by:** {creator.mention}\n\n"
-            f"**Question:** {question}{reward_text}\n\n"
+            f"**Question:** {question}{reward_output}\n\n"
             f"*Type the answer to the riddle in chat to solve!*"
         ),
         color=discord.Color.gold(),
@@ -424,7 +440,16 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
         await interaction.followup.send(f"🛑 Removed code bypass permissions from all {count} user(s)!", ephemeral=True)
 
 
-@bot.tree.command(name="createcode", description="Creates a standard or role-reward code embed.")
+@bot.tree.command(name="createcode", description="Creates a standard or reward code embed.")
+@app_commands.describe(
+    code="The secret code to type",
+    speed="Speed of revealing the code sections",
+    include_numbers="Whether to append random numbers at the end",
+    show_sections="Show section count message",
+    role="Optional role reward",
+    reward_text="Optional custom text description for the reward",
+    channel="Target channel"
+)
 async def createcode_slash(
     interaction: discord.Interaction, 
     code: str, 
@@ -432,6 +457,7 @@ async def createcode_slash(
     include_numbers: bool = False,
     show_sections: bool = False,
     role: discord.Role | None = None,
+    reward_text: str | None = None,
     channel: discord.TextChannel | None = None
 ):
     await interaction.response.defer(ephemeral=True)
@@ -485,7 +511,14 @@ async def createcode_slash(
         return
 
     random_digits = "".join(random.choices(string.digits, k=4)) if include_numbers else None
-    reward_msg = f" with reward {role.mention}" if role else ""
+    
+    reward_msg_parts = []
+    if role:
+        reward_msg_parts.append(role.mention)
+    if reward_text:
+        reward_msg_parts.append(reward_text)
+    reward_msg = f" with reward {' '.join(reward_msg_parts)}" if reward_msg_parts else ""
+    
     await interaction.followup.send(f"✅ Code creation started in {target_channel.mention}{reward_msg}!", ephemeral=True)
 
     sections = split_phrase(clean_code)
@@ -495,18 +528,27 @@ async def createcode_slash(
         sections, 
         interaction.user, 
         reward_role=role, 
+        reward_text=reward_text,
         random_digits=random_digits,
         speed=speed,
         show_sections=show_sections
     )
 
 
-@bot.tree.command(name="createriddle", description="Creates a standard or role-reward riddle challenge.")
+@bot.tree.command(name="createriddle", description="Creates a standard or reward riddle challenge.")
+@app_commands.describe(
+    question="The riddle question",
+    answer="The secret answer",
+    role="Optional role reward",
+    reward_text="Optional custom text description for the reward",
+    channel="Target channel"
+)
 async def createriddle_slash(
     interaction: discord.Interaction,
     question: str,
     answer: str,
     role: discord.Role | None = None,
+    reward_text: str | None = None,
     channel: discord.TextChannel | None = None
 ):
     await interaction.response.defer(ephemeral=True)
@@ -556,10 +598,23 @@ async def createriddle_slash(
         await interaction.followup.send("❌ Question and answer cannot be empty!", ephemeral=True)
         return
 
-    reward_msg = f" with reward {role.mention}" if role else ""
+    reward_msg_parts = []
+    if role:
+        reward_msg_parts.append(role.mention)
+    if reward_text:
+        reward_msg_parts.append(reward_text)
+    reward_msg = f" with reward {' '.join(reward_msg_parts)}" if reward_msg_parts else ""
+
     await interaction.followup.send(f"✅ Riddle created in {target_channel.mention}{reward_msg}!", ephemeral=True)
 
-    await process_riddle_creation(target_channel, clean_question, clean_answer, interaction.user, reward_role=role)
+    await process_riddle_creation(
+        target_channel, 
+        clean_question, 
+        clean_answer, 
+        interaction.user, 
+        reward_role=role, 
+        reward_text=reward_text
+    )
 
 
 # --- PREFIX COMMANDS (!cmds) ---
