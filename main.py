@@ -247,7 +247,6 @@ async def process_code_creation(
 
     embed.title = "Role Code Created!" if reward_role else "Code Created!"
     
-    # Build reward string parts
     reward_pieces = []
     if reward_role:
         reward_pieces.append(reward_role.mention)
@@ -666,6 +665,29 @@ async def unblacklist(ctx, user: discord.User | discord.Member):
     blacklisted_users.remove(user.id)
     save_blacklist(blacklisted_users)
     await ctx.send(f"✅ {user.mention} has been removed from the blacklist!")
+
+
+@bot.command(name="blacklistlist")
+@is_not_blacklisted()
+@is_admin_or_owner()
+async def blacklistlist_command(ctx):
+    if not blacklisted_users:
+        await ctx.send("📋 There are currently no blacklisted users.")
+        return
+
+    user_lines = []
+    for user_id in blacklisted_users:
+        user_lines.append(f"• <@!{user_id}> (`ID: {user_id}`)")
+
+    embed = discord.Embed(
+        title="🚫 Blacklisted Users List",
+        description="\n".join(user_lines),
+        color=discord.Color.red()
+    )
+    if hasattr(ctx.author, "display_avatar"):
+        embed.set_footer(text=f"Requested by {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
+
+    await ctx.send(embed=embed)
 
 
 # --- MESSAGE LISTENER FOR CODE SOLVING ---
