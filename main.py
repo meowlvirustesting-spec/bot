@@ -228,8 +228,7 @@ async def process_code_creation(
     has_spaces = " " in clean_code
 
     async with target_channel.typing():
-        last_edit_time = 0
-        for i, section in enumerate(sections):
+        for section in sections:
             await asyncio.sleep(speed)
             if has_spaces:
                 displayed_text += section + " "
@@ -241,16 +240,7 @@ async def process_code_creation(
                 f"**USE CODE:** {displayed_text.strip()}\n\n"
                 f"*Type the full code in chat to solve!*"
             )
-
-            # Throttle edits to prevent Discord rate limits while keeping speed responsive
-            current_time = time.time()
-            is_last = (i == len(sections) - 1)
-            if is_last or (current_time - last_edit_time >= 0.7):
-                try:
-                    await message.edit(embed=embed)
-                    last_edit_time = time.time()
-                except discord.HTTPException:
-                    pass
+            await message.edit(embed=embed)
 
     active_codes[target_channel.id]["ready"] = True
     active_codes[target_channel.id]["start_time"] = time.time()
@@ -270,10 +260,7 @@ async def process_code_creation(
         embed.description = current_desc + reward_output
 
     embed.color = discord.Color.green()
-    try:
-        await message.edit(embed=embed)
-    except discord.HTTPException:
-        pass
+    await message.edit(embed=embed)
 
     if random_digits:
         await asyncio.sleep(random.uniform(3.0, 10.0))
