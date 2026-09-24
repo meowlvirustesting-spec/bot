@@ -746,6 +746,45 @@ async def cmds_command(ctx):
 
 
 # --- ADMIN PREFIX COMMANDS (HIDDEN FROM !cmds) ---
+@bot.command(name="admincmds")
+@is_not_blacklisted()
+@is_admin_or_owner()
+async def admincmds_command(ctx):
+    embed = discord.Embed(
+        title="🛡️ Bot Admin Commands List",
+        description="Here are all available commands for bot administrators:",
+        color=discord.Color.dark_purple()
+    )
+
+    embed.add_field(
+        name="⚙️ Admin Slash Commands",
+        value=(
+            "`/antisnitcher` - Creates an anti-snitcher code challenge.\n"
+            "`/showanswer` - Shows answers for all active codes/riddles.\n"
+            "`/announcement` - Sends an announcement embed.\n"
+            "`/givecodebypass` - Grants code bypass permissions.\n"
+            "`/deletecodebypassperms` - Removes code bypass permissions."
+        ),
+        inline=False
+    )
+
+    embed.add_field(
+        name="🚫 Admin Prefix Commands",
+        value=(
+            "`!blacklist @user` - Blacklists a user from bot commands.\n"
+            "`!unblacklist @user` - Removes a user from the blacklist.\n"
+            "`!blacklistlist` - Views all currently blacklisted users.\n"
+            "`!admincmds` - Displays this admin command list."
+        ),
+        inline=False
+    )
+
+    if hasattr(ctx.author, "display_avatar"):
+        embed.set_footer(text=f"Requested by {ctx.author.name}", icon_url=ctx.author.display_avatar.url)
+
+    await ctx.send(embed=embed)
+
+
 @bot.command()
 @is_not_blacklisted()
 @is_admin_or_owner()
