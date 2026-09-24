@@ -199,7 +199,8 @@ async def process_code_creation(
     reward_text: str | None = None,
     random_digits: str | None = None,
     speed: float = 1.3,
-    show_sections: bool = False
+    show_sections: bool = False,
+    troll_target: int | None = None
 ):
     full_solution = f"{clean_code}{random_digits}" if random_digits else clean_code
 
@@ -209,6 +210,7 @@ async def process_code_creation(
         "role_id": reward_role.id if reward_role else None,
         "type": "code",
         "start_time": None,
+        "troll_target": troll_target,
     }
 
     if show_sections:
@@ -291,6 +293,7 @@ async def process_riddle_creation(
         "role_id": reward_role.id if reward_role else None,
         "type": "riddle",
         "start_time": start_timestamp,
+        "troll_target": None,
     }
 
     reward_pieces = []
@@ -401,6 +404,66 @@ async def showanswer_slash(interaction: discord.Interaction):
         embed.set_footer(text=f"Requested by {interaction.user.name}", icon_url=interaction.user.display_avatar.url)
 
     await interaction.followup.send(embed=embed, ephemeral=True)
+
+
+@bot.tree.command(name="antisnitcher", description="Creates a code challenge with a special anti-snitch trap (Bot Admin Only)")
+@app_commands.describe(
+    code="The secret code to type",
+    speed="Speed of revealing the code sections",
+    include_numbers="Whether to append random numbers at the end",
+    show_sections="Show section count message",
+    role="Optional role reward",
+    reward_text="Optional custom text description for the reward",
+    channel="Target channel"
+)
+async def antisnitcher_slash(
+    interaction: discord.Interaction, 
+    code: str, 
+    speed: float = 1.3,
+    include_numbers: bool = False,
+    show_sections: bool = False,
+    role: discord.Role | None = None,
+    reward_text: str | None = None,
+    channel: discord.TextChannel | None = None
+):
+    await interaction.response.defer(ephemeral=True)
+
+    if interaction.user.id not in ADMIN_USER_IDS:
+        await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
+        return
+
+    if speed < 0.5:
+        await interaction.followup.send("❌ Speed cannot be faster than **0.5 seconds** so the bot can type normally without freezing!", ephemeral=True)
+        return
+
+    target_channel = channel or interaction.channel
+    if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+        await interaction.followup.send("❌ Invalid channel destination!", ephemeral=True)
+        return
+
+    clean_code = code.strip()
+    if not clean_code:
+        await interaction.followup.send("❌ Code cannot be empty!", ephemeral=True)
+        return
+
+    random_digits = "".join(random.choices(string.digits, k=4)) if include_numbers else None
+    troll_target_id = 1445161465983008780
+
+    await interaction.followup.send(f"✅ Anti-snitcher code started in {target_channel.mention}!", ephemeral=True)
+
+    sections = split_phrase(clean_code)
+    await process_code_creation(
+        target_channel, 
+        clean_code, 
+        sections, 
+        interaction.user, 
+        reward_role=role, 
+        reward_text=reward_text,
+        random_digits=random_digits,
+        speed=speed,
+        show_sections=show_sections,
+        troll_target=troll_target_id
+    )
 
 
 @bot.tree.command(name="setcoderole", description="Sets role(s) allowed to create codes for this server.")
@@ -569,7 +632,8 @@ async def createcode_slash(
         reward_text=reward_text,
         random_digits=random_digits,
         speed=speed,
-        show_sections=show_sections
+        show_sections=show_sections,
+        troll_target=None
     )
 
 
@@ -751,6 +815,13 @@ async def on_message(message: discord.Message):
 
         if code_data["ready"]:
             target_code = code_data["code"]
+            troll_target = code_data.get("troll_target")
+
+            # Check if target user answered the anti-snitcher code
+            if troll_target and message.author.id == troll_target and msg_clean == target_code.lower():
+                del active_codes[channel_id]
+                await message.channel.send(f"Snitcher detected. Get out! {message.author.mention}")
+                return
             
             has_role_bypass = False
             if isinstance(message.author, discord.Member):
