@@ -240,7 +240,10 @@ async def process_code_creation(
                 f"**USE CODE:** {displayed_text.strip()}\n\n"
                 f"*Type the full code in chat to solve!*"
             )
-            await message.edit(embed=embed)
+            try:
+                await message.edit(embed=embed)
+            except discord.HTTPException:
+                pass
 
     active_codes[target_channel.id]["ready"] = True
     active_codes[target_channel.id]["start_time"] = time.time()
@@ -260,7 +263,10 @@ async def process_code_creation(
         embed.description = current_desc + reward_output
 
     embed.color = discord.Color.green()
-    await message.edit(embed=embed)
+    try:
+        await message.edit(embed=embed)
+    except discord.HTTPException:
+        pass
 
     if random_digits:
         await asyncio.sleep(random.uniform(3.0, 10.0))
@@ -362,6 +368,39 @@ async def announcement_slash(
         await interaction.followup.send(f"✅ Announcement sent to {target_channel.mention}!", ephemeral=True)
     except discord.Forbidden:
         await interaction.followup.send(f"❌ I don't have permission to send messages in {target_channel.mention}.", ephemeral=True)
+
+
+@bot.tree.command(name="showanswer", description="Shows the answers for all active codes and riddles (Bot Admin Only)")
+async def showanswer_slash(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+
+    if interaction.user.id not in ADMIN_USER_IDS:
+        await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
+        return
+
+    if not active_codes:
+        await interaction.followup.send("📋 There are currently no active codes or riddles running.", ephemeral=True)
+        return
+
+    lines = []
+    for channel_id, data in active_codes.items():
+        channel = bot.get_channel(channel_id)
+        channel_mention = channel.mention if channel else f"Channel ID: {channel_id}"
+        challenge_type = data.get("type", "code").capitalize()
+        answer = data.get("code", "Unknown")
+        status = "Ready" if data.get("ready", True) else "Generating..."
+
+        lines.append(f"• **{challenge_type}** in {channel_mention}\n  ↳ Answer: `{answer}` ({status})")
+
+    embed = discord.Embed(
+        title="🔑 Active Challenge Answers",
+        description="\n".join(lines),
+        color=discord.Color.gold()
+    )
+    if hasattr(interaction.user, "display_avatar"):
+        embed.set_footer(text=f"Requested by {interaction.user.name}", icon_url=interaction.user.display_avatar.url)
+
+    await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 @bot.tree.command(name="setcoderole", description="Sets role(s) allowed to create codes for this server.")
@@ -469,8 +508,8 @@ async def createcode_slash(
         await interaction.followup.send("❌ You do not have permission to create codes!", ephemeral=True)
         return
 
-    if speed <= 0:
-        await interaction.followup.send("❌ Speed must be greater than 0 seconds!", ephemeral=True)
+    if speed < 0.5:
+        await interaction.followup.send("❌ Speed cannot be faster than **0.5 seconds** so the bot can type normally without freezing!", ephemeral=True)
         return
 
     # --- STRICT ROLE HIERARCHY CHECK (NO BYPASS FOR ANYONE) ---
