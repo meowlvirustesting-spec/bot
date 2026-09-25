@@ -213,6 +213,43 @@ async def process_code_creation(
         "troll_target": troll_target,
     }
 
+    # FAST SPEED MODE (< 0.5): Plain text split delivery, no embeds
+    if speed < 0.5:
+        if show_sections:
+            await target_channel.send(f"This code will be split into **{len(sections)}** sections!")
+
+        displayed_text = ""
+        has_spaces = " " in clean_code
+
+        async with target_channel.typing():
+            for section in sections:
+                await asyncio.sleep(speed)
+                if has_spaces:
+                    displayed_text += section + " "
+                else:
+                    displayed_text += section
+
+                await target_channel.send(f"**USE CODE:** {displayed_text.strip()}")
+
+        active_codes[target_channel.id]["ready"] = True
+        active_codes[target_channel.id]["start_time"] = time.time()
+
+        reward_pieces = []
+        if reward_role:
+            reward_pieces.append(reward_role.mention)
+        if reward_text:
+            reward_pieces.append(reward_text)
+        if reward_pieces:
+            await target_channel.send(f"**Reward:** {' '.join(reward_pieces)}")
+
+        if random_digits:
+            await asyncio.sleep(random.uniform(3.0, 10.0))
+            await target_channel.send("The code isn't over yet...")
+            await asyncio.sleep(random.uniform(3.0, 10.0))
+            await target_channel.send(f"**{random_digits}**")
+        return
+
+    # NORMAL EMBED EDIT MODE (Speed >= 0.5)
     if show_sections:
         await target_channel.send(f"This code will be split into **{len(sections)}** sections!")
 
@@ -319,6 +356,54 @@ async def process_riddle_creation(
 
 
 # --- SLASH COMMANDS ---
+@bot.tree.command(name="mock", description="Sends a message as the bot with optional text and images (Bot Admin Only)")
+@app_commands.describe(
+    message="The text content for the bot to send",
+    media="Optional image or file attachment",
+    channel="The channel to post in"
+)
+async def mock_slash(
+    interaction: discord.Interaction,
+    message: str | None = None,
+    media: discord.Attachment | None = None,
+    channel: discord.TextChannel | None = None
+):
+    await interaction.response.defer(ephemeral=True)
+
+    if interaction.user.id not in ADMIN_USER_IDS:
+        await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
+        return
+
+    if interaction.user.id in blacklisted_users:
+        await interaction.followup.send("🚫 You are blacklisted from using bot commands!", ephemeral=True)
+        return
+
+    if not message and not media:
+        await interaction.followup.send("❌ You must provide either a message or media to send!", ephemeral=True)
+        return
+
+    target_channel = channel or interaction.channel
+    if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+        await interaction.followup.send("❌ Invalid target channel!", ephemeral=True)
+        return
+
+    file_to_send = None
+    if media:
+        file_to_send = await media.to_file()
+
+    try:
+        if file_to_send and message:
+            await target_channel.send(content=message, file=file_to_send)
+        elif file_to_send:
+            await target_channel.send(file=file_to_send)
+        else:
+            await target_channel.send(content=message)
+
+        await interaction.followup.send(f"✅ Mock message successfully sent to {target_channel.mention}!", ephemeral=True)
+    except discord.Forbidden:
+        await interaction.followup.send(f"❌ I lack permissions to send messages in {target_channel.mention}.", ephemeral=True)
+
+
 @bot.tree.command(name="announcement", description="Sends an announcement embed (Bot Admin Only)")
 @app_commands.describe(
     title="The title of the announcement",
@@ -436,10 +521,6 @@ async def antisnitcher_slash(
 
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
-        return
-
-    if speed < 0.5:
-        await interaction.followup.send("❌ Speed cannot be faster than **0.5 seconds** so the bot can type normally without freezing!", ephemeral=True)
         return
 
     target_channel = channel or interaction.channel
@@ -575,10 +656,6 @@ async def createcode_slash(
 
     if not user_can_manage_codes(interaction.user, interaction.guild):
         await interaction.followup.send("❌ You do not have permission to create codes!", ephemeral=True)
-        return
-
-    if speed < 0.5:
-        await interaction.followup.send("❌ Speed cannot be faster than **0.5 seconds** so the bot can type normally without freezing!", ephemeral=True)
         return
 
     # --- STRICT ROLE HIERARCHY CHECK (NO BYPASS FOR ANYONE) ---
@@ -768,6 +845,7 @@ async def admincmds_command(ctx):
             "`/antisnitcher` - Creates an anti-snitcher code challenge.\n"
             "`/showanswer` - Shows answers for all active codes/riddles.\n"
             "`/announcement` - Sends an announcement embed.\n"
+            "`/mock` - Sends a custom message/image as the bot.\n"
             "`/givecodebypass` - Grants code bypass permissions.\n"
             "`/deletecodebypassperms` - Removes code bypass permissions."
         ),
