@@ -388,6 +388,12 @@ async def showanswer_slash(interaction: discord.Interaction):
     lines = []
     for channel_id, data in active_codes.items():
         channel = bot.get_channel(channel_id)
+        if not channel:
+            try:
+                channel = await bot.fetch_channel(channel_id)
+            except Exception:
+                channel = None
+
         channel_mention = channel.mention if channel else f"Channel ID: {channel_id}"
         challenge_type = data.get("type", "code").capitalize()
         answer = data.get("code", "Unknown")
