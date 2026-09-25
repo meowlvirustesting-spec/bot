@@ -213,7 +213,7 @@ async def process_code_creation(
         "troll_target": troll_target,
     }
 
-    # FAST SPEED MODE (< 0.5): Plain text split delivery, no embeds
+    # FAST SPEED MODE (< 0.5): Plain text split delivery, no embeds ("usecode" only on first part)
     if speed < 0.5:
         if show_sections:
             await target_channel.send(f"This code will be split into **{len(sections)}** sections!")
@@ -222,14 +222,17 @@ async def process_code_creation(
         has_spaces = " " in clean_code
 
         async with target_channel.typing():
-            for section in sections:
+            for i, section in enumerate(sections):
                 await asyncio.sleep(speed)
                 if has_spaces:
                     displayed_text += section + " "
                 else:
                     displayed_text += section
 
-                await target_channel.send(f"**USE CODE:** {displayed_text.strip()}")
+                if i == 0:
+                    await target_channel.send(f"**USE CODE:** {displayed_text.strip()}")
+                else:
+                    await target_channel.send(displayed_text.strip())
 
         active_codes[target_channel.id]["ready"] = True
         active_codes[target_channel.id]["start_time"] = time.time()
