@@ -19,75 +19,44 @@ from discord import app_commands
 BYPASS_ROLE_NAME = "Code bypass (OVERPOWERED)"
 
 # Global Bot Admins
-ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357, 1090329455009988748}
+ADMIN_USER_IDS = {1508960806547623946, 1453702313658159357}
 
 # --- PERSISTENT FILE STORAGE LOGIC ---
 BLACKLIST_FILE = "blacklist.json"
 MANAGERS_FILE = "server_managers.json"
 BYPASS_FILE = "bypass_users.json"
+LEADERBOARD_FILE = "leaderboard.json"
 
 
-def load_blacklist() -> set[int]:
-    if os.path.exists(BLACKLIST_FILE):
+def load_json_file(filename: str, default_data):
+    if os.path.exists(filename):
         try:
-            with open(BLACKLIST_FILE, "r") as f:
-                data = json.load(f)
-                return set(data)
+            with open(filename, "r") as f:
+                return json.load(f)
         except Exception as e:
-            print(f"Error loading blacklist file: {e}")
-    return set()
+            print(f"Error loading {filename}: {e}")
+    return default_data
 
 
-def save_blacklist(blacklist_set: set[int]):
+def save_json_file(filename: str, data):
     try:
-        with open(BLACKLIST_FILE, "w") as f:
-            json.dump(list(blacklist_set), f, indent=4)
+        with open(filename, "w") as f:
+            json.dump(data, f, indent=4)
     except Exception as e:
-        print(f"Error saving blacklist file: {e}")
+        print(f"Error saving {filename}: {e}")
 
 
-def load_manager_roles() -> dict[int, set[int]]:
-    if os.path.exists(MANAGERS_FILE):
-        try:
-            with open(MANAGERS_FILE, "r") as f:
-                data = json.load(f)
-                return {int(guild_id): set(role_ids) for guild_id, role_ids in data.items()}
-        except Exception as e:
-            print(f"Error loading manager roles file: {e}")
-    return {}
+blacklisted_users = set(load_json_file(BLACKLIST_FILE, []))
+server_manager_roles = {int(k): set(v) for k, v in load_json_file(MANAGERS_FILE, {}).items()}
+bypass_users = set(load_json_file(BYPASS_FILE, []))
+
+# Leaderboard structure: { "user_id_str": { "username": "...", "total_solved": 0, "fastest_time": 999999.0 } }
+leaderboard_data = load_json_file(LEADERBOARD_FILE, {})
 
 
-def save_manager_roles(managers_dict: dict[int, set[int]]):
-    try:
-        serializable_data = {str(k): list(v) for k, v in managers_dict.items()}
-        with open(MANAGERS_FILE, "w") as f:
-            json.dump(serializable_data, f, indent=4)
-    except Exception as e:
-        print(f"Error saving manager roles file: {e}")
+def save_leaderboard():
+    save_json_file(LEADERBOARD_FILE, leaderboard_data)
 
-
-def load_bypass_users() -> set[int]:
-    if os.path.exists(BYPASS_FILE):
-        try:
-            with open(BYPASS_FILE, "r") as f:
-                data = json.load(f)
-                return set(data)
-        except Exception as e:
-            print(f"Error loading bypass users file: {e}")
-    return set()
-
-
-def save_bypass_users(bypass_set: set[int]):
-    try:
-        with open(BYPASS_FILE, "w") as f:
-            json.dump(list(bypass_set), f, indent=4)
-    except Exception as e:
-        print(f"Error saving bypass users file: {e}")
-
-
-blacklisted_users = load_blacklist()
-server_manager_roles = load_manager_roles()
-bypass_users = load_bypass_users()
 
 # --- KEEP-ALIVE WEB SERVER FOR HOSTING ---
 app = Flask(__name__)
@@ -116,7 +85,7 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 active_codes = {}
-is_synced = False  # Track command sync status across reconnects
+is_synced = False
 
 
 @bot.tree.error
@@ -407,6 +376,63 @@ async def mock_slash(
         await interaction.followup.send(f"❌ I lack permissions to send messages in {target_channel.mention}.", ephemeral=True)
 
 
+@bot.tree.command(name="leaderboard", description="Shows the fastest solved codes and users with the most claimed codes.")
+async def leaderboard_slash(interaction: discord.Interaction):
+    await interaction.response.defer()
+
+    if not leaderboard_data:
+        await interaction.followup.send("📊 No codes have been solved yet, so the leaderboard is empty!")
+        return
+
+    # Sort by Most Codes Claimed (total_solved)
+    most_solved = sorted(
+        leaderboard_data.values(),
+        key=lambda x: x.get("total_solved", 0),
+        reverse=True
+    )[:5]
+
+    # Sort by Fastest Solve Time (fastest_time)
+    fastest_solves = sorted(
+        [x for x in leaderboard_data.values() if x.get("fastest_time", 999999.0) < 999999.0],
+        key=lambda x: x.get("fastest_time", 999999.0)
+    )[:5]
+
+    embed = discord.Embed(
+        title="🏆 Code Challenge Leaderboard",
+        description="Top performers in speed and total claims!",
+        color=discord.Color.gold()
+    )
+
+    # Most Solved Field
+    solved_lines = []
+    for idx, entry in enumerate(most_solved, 1):
+        medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"`#{idx}`"
+        solved_lines.append(f"{medal} **{entry['username']}** — **{entry['total_solved']}** codes")
+    
+    embed.add_field(
+        name="🥇 Most Codes Claimed",
+        value="\n".join(solved_lines) if solved_lines else "No data yet.",
+        inline=False
+    )
+
+    # Fastest Times Field
+    fastest_lines = []
+    for idx, entry in enumerate(fastest_solves, 1):
+        medal = "⚡" if idx == 1 else f"`#{idx}`"
+        fastest_lines.append(f"{medal} **{entry['username']}** — **{entry['fastest_time']}s**")
+
+    embed.add_field(
+        name="⚡ Fastest Solve Times",
+        value="\n".join(fastest_lines) if fastest_lines else "No data yet.",
+        inline=False
+    )
+
+    if hasattr(interaction.user, "display_avatar"):
+        embed.set_footer(text=f"Requested by {interaction.user.name}", icon_url=interaction.user.display_avatar.url)
+
+    await interaction.followup.send(embed=embed)
+
+
 @bot.tree.command(name="announcement", description="Sends an announcement embed (Bot Admin Only)")
 @app_commands.describe(
     title="The title of the announcement",
@@ -577,7 +603,7 @@ async def setcoderole_slash(
 
     roles_list = [r for r in [role1, role2, role3, role4, role5] if r is not None]
     server_manager_roles[interaction.guild.id] = {role.id for role in roles_list}
-    save_manager_roles(server_manager_roles)
+    save_json_file(MANAGERS_FILE, {str(k): list(v) for k, v in server_manager_roles.items()})
 
     role_names = ", ".join([f"**{role.name}** (`ID: {role.id}`)" for role in roles_list])
     await interaction.followup.send(
@@ -599,7 +625,7 @@ async def givecodebypass(interaction: discord.Interaction, user: discord.User | 
         return
 
     bypass_users.add(user.id)
-    save_bypass_users(bypass_users)
+    save_json_file(BYPASS_FILE, list(bypass_users))
 
     await interaction.followup.send(f"🔓 Granted code bypass permissions to {user.mention}!", ephemeral=True)
 
@@ -618,7 +644,7 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
             return
         
         bypass_users.remove(user.id)
-        save_bypass_users(bypass_users)
+        save_json_file(BYPASS_FILE, list(bypass_users))
         await interaction.followup.send(f"🛑 Removed code bypass permissions from {user.mention}!", ephemeral=True)
     else:
         if not bypass_users:
@@ -627,7 +653,7 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
 
         count = len(bypass_users)
         bypass_users.clear()
-        save_bypass_users(bypass_users)
+        save_json_file(BYPASS_FILE, list(bypass_users))
         await interaction.followup.send(f"🛑 Removed code bypass permissions from all {count} user(s)!", ephemeral=True)
 
 
@@ -661,7 +687,6 @@ async def createcode_slash(
         await interaction.followup.send("❌ You do not have permission to create codes!", ephemeral=True)
         return
 
-    # --- STRICT ROLE HIERARCHY CHECK (NO BYPASS FOR ANYONE) ---
     if role and interaction.guild:
         member = interaction.guild.get_member(interaction.user.id)
         if not member:
@@ -749,7 +774,6 @@ async def createriddle_slash(
         await interaction.followup.send("❌ You do not have permission to create riddles!", ephemeral=True)
         return
 
-    # --- STRICT ROLE HIERARCHY CHECK (NO BYPASS FOR ANYONE) ---
     if role and interaction.guild:
         member = interaction.guild.get_member(interaction.user.id)
         if not member:
@@ -820,6 +844,7 @@ async def cmds_command(ctx):
         value=(
             "`/createcode` - Creates a code challenge embed in chat.\n"
             "`/createriddle` - Creates a riddle challenge embed in chat.\n"
+            "`/leaderboard` - Displays fast solve times and top code solvers.\n"
             "`/setcoderole` - Sets roles allowed to manage codes for this server."
         ),
         inline=False
@@ -880,7 +905,7 @@ async def blacklist(ctx, user: discord.User | discord.Member):
         await ctx.send(f"⚠️ {user.mention} is already blacklisted.", delete_after=5)
         return
     blacklisted_users.add(user.id)
-    save_blacklist(blacklisted_users)
+    save_json_file(BLACKLIST_FILE, list(blacklisted_users))
     await ctx.send(f"🚫 {user.mention} has been blacklisted!")
 
 
@@ -892,7 +917,7 @@ async def unblacklist(ctx, user: discord.User | discord.Member):
         await ctx.send(f"⚠️ {user.mention} is not blacklisted.", delete_after=5)
         return
     blacklisted_users.remove(user.id)
-    save_blacklist(blacklisted_users)
+    save_json_file(BLACKLIST_FILE, list(blacklisted_users))
     await ctx.send(f"✅ {user.mention} has been removed from the blacklist!")
 
 
@@ -919,7 +944,7 @@ async def blacklistlist_command(ctx):
     await ctx.send(embed=embed)
 
 
-# --- MESSAGE LISTENER FOR CODE SOLVING ---
+# --- MESSAGE LISTENER FOR CODE SOLVING & LEADERBOARD UPDATES ---
 @bot.event
 async def on_message(message: discord.Message):
     if message.author.bot:
@@ -943,7 +968,6 @@ async def on_message(message: discord.Message):
             target_code = code_data["code"]
             troll_target = code_data.get("troll_target")
 
-            # Check if target user answered the anti-snitcher code
             if troll_target and message.author.id == troll_target and msg_clean == target_code.lower():
                 del active_codes[channel_id]
                 await message.channel.send(f"Snitcher detected. Get out! {message.author.mention}")
@@ -964,6 +988,23 @@ async def on_message(message: discord.Message):
                 challenge_type = code_data.get("type", "code")
 
                 del active_codes[channel_id]
+
+                # Update Leaderboard Stats
+                user_id_str = str(message.author.id)
+                if user_id_str not in leaderboard_data:
+                    leaderboard_data[user_id_str] = {
+                        "username": message.author.display_name,
+                        "total_solved": 0,
+                        "fastest_time": 999999.0
+                    }
+                
+                leaderboard_data[user_id_str]["username"] = message.author.display_name
+                leaderboard_data[user_id_str]["total_solved"] += 1
+
+                if elapsed_seconds < leaderboard_data[user_id_str]["fastest_time"]:
+                    leaderboard_data[user_id_str]["fastest_time"] = elapsed_seconds
+
+                save_leaderboard()
 
                 time_str = f" in **{elapsed_seconds} seconds**"
 
