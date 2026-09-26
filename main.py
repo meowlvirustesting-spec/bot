@@ -26,6 +26,7 @@ BLACKLIST_FILE = "blacklist.json"
 MANAGERS_FILE = "server_managers.json"
 BYPASS_FILE = "bypass_users.json"
 LEADERBOARD_FILE = "leaderboard.json"
+SERVERS_BLACKLIST_FILE = "blacklisted_servers.json"
 
 
 def load_json_file(filename: str, default_data):
@@ -49,9 +50,8 @@ def save_json_file(filename: str, data):
 blacklisted_users = set(load_json_file(BLACKLIST_FILE, []))
 server_manager_roles = {int(k): set(v) for k, v in load_json_file(MANAGERS_FILE, {}).items()}
 bypass_users = set(load_json_file(BYPASS_FILE, []))
-
-# Leaderboard structure: { "user_id_str": { "username": "...", "total_solved": 0, "fastest_time": 999999.0 } }
 leaderboard_data = load_json_file(LEADERBOARD_FILE, {})
+blacklisted_servers = set(load_json_file(SERVERS_BLACKLIST_FILE, []))
 
 
 def save_leaderboard():
@@ -116,6 +116,8 @@ async def on_ready():
 # --- PERMISSION CHECKS ---
 def is_not_blacklisted():
     async def predicate(ctx):
+        if ctx.guild and ctx.guild.id in blacklisted_servers:
+            return False
         return ctx.author.id not in blacklisted_users
     return commands.check(predicate)
 
@@ -138,6 +140,8 @@ def user_can_manage_codes(member: discord.Member | discord.User, guild: discord.
     if member.id in ADMIN_USER_IDS:
         return True
     if isinstance(member, discord.Member) and guild:
+        if guild.id in blacklisted_servers:
+            return False
         if member.guild_permissions.administrator:
             return True
         assigned_role_ids = server_manager_roles.get(guild.id, set())
@@ -171,6 +175,9 @@ async def process_code_creation(
     show_sections: bool = False,
     troll_target: int | None = None
 ):
+    if target_channel.guild and target_channel.guild.id in blacklisted_servers:
+        return
+
     full_solution = f"{clean_code}{random_digits}" if random_digits else clean_code
 
     active_codes[target_channel.id] = {
@@ -295,6 +302,9 @@ async def process_riddle_creation(
     reward_role: discord.Role | None = None,
     reward_text: str | None = None,
 ):
+    if target_channel.guild and target_channel.guild.id in blacklisted_servers:
+        return
+
     start_timestamp = time.time()
     active_codes[target_channel.id] = {
         "code": answer.strip().lower(),
@@ -342,6 +352,10 @@ async def mock_slash(
 ):
     await interaction.response.defer(ephemeral=True)
 
+    if interaction.guild and interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
+
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
         return
@@ -380,18 +394,20 @@ async def mock_slash(
 async def leaderboard_slash(interaction: discord.Interaction):
     await interaction.response.defer()
 
+    if interaction.guild and interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
+
     if not leaderboard_data:
         await interaction.followup.send("📊 No codes have been solved yet, so the leaderboard is empty!")
         return
 
-    # Sort by Most Codes Claimed (total_solved)
     most_solved = sorted(
         leaderboard_data.values(),
         key=lambda x: x.get("total_solved", 0),
         reverse=True
     )[:5]
 
-    # Sort by Fastest Solve Time (fastest_time)
     fastest_solves = sorted(
         [x for x in leaderboard_data.values() if x.get("fastest_time", 999999.0) < 999999.0],
         key=lambda x: x.get("fastest_time", 999999.0)
@@ -403,7 +419,6 @@ async def leaderboard_slash(interaction: discord.Interaction):
         color=discord.Color.gold()
     )
 
-    # Most Solved Field
     solved_lines = []
     for idx, entry in enumerate(most_solved, 1):
         medal = "🥇" if idx == 1 else "🥈" if idx == 2 else "🥉" if idx == 3 else f"`#{idx}`"
@@ -415,7 +430,6 @@ async def leaderboard_slash(interaction: discord.Interaction):
         inline=False
     )
 
-    # Fastest Times Field
     fastest_lines = []
     for idx, entry in enumerate(fastest_solves, 1):
         medal = "⚡" if idx == 1 else f"`#{idx}`"
@@ -448,6 +462,10 @@ async def announcement_slash(
     channel: discord.TextChannel | None = None
 ):
     await interaction.response.defer(ephemeral=True)
+
+    if interaction.guild and interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
 
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
@@ -490,6 +508,10 @@ async def announcement_slash(
 @bot.tree.command(name="showanswer", description="Shows the answers for all active codes and riddles (Bot Admin Only)")
 async def showanswer_slash(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
+
+    if interaction.guild and interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
 
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
@@ -548,6 +570,10 @@ async def antisnitcher_slash(
 ):
     await interaction.response.defer(ephemeral=True)
 
+    if interaction.guild and interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
+
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
         return
@@ -597,6 +623,10 @@ async def setcoderole_slash(
         await interaction.followup.send("❌ This command can only be used inside a server!", ephemeral=True)
         return
 
+    if interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
+
     if not user_is_server_admin(interaction.user):
         await interaction.followup.send("❌ You need **Manage Server** or **Administrator** permissions!", ephemeral=True)
         return
@@ -616,6 +646,10 @@ async def setcoderole_slash(
 async def givecodebypass(interaction: discord.Interaction, user: discord.User | discord.Member):
     await interaction.response.defer(ephemeral=True)
 
+    if interaction.guild and interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
+
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
         return
@@ -633,6 +667,10 @@ async def givecodebypass(interaction: discord.Interaction, user: discord.User | 
 @bot.tree.command(name="deletecodebypassperms", description="Removes code bypass permissions from a user or all users (Bot Admin Only)")
 async def deletecodebypassperms(interaction: discord.Interaction, user: discord.User | discord.Member | None = None):
     await interaction.response.defer(ephemeral=True)
+
+    if interaction.guild and interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
 
     if interaction.user.id not in ADMIN_USER_IDS:
         await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
@@ -678,6 +716,10 @@ async def createcode_slash(
     channel: discord.TextChannel | None = None
 ):
     await interaction.response.defer(ephemeral=True)
+
+    if interaction.guild and interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
 
     if interaction.user.id in blacklisted_users:
         await interaction.followup.send("🚫 You are blacklisted from using bot commands!", ephemeral=True)
@@ -765,6 +807,10 @@ async def createriddle_slash(
     channel: discord.TextChannel | None = None
 ):
     await interaction.response.defer(ephemeral=True)
+
+    if interaction.guild and interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
 
     if interaction.user.id in blacklisted_users:
         await interaction.followup.send("🚫 You are blacklisted from using bot commands!", ephemeral=True)
@@ -886,6 +932,8 @@ async def admincmds_command(ctx):
             "`!blacklist @user` - Blacklists a user from bot commands.\n"
             "`!unblacklist @user` - Removes a user from the blacklist.\n"
             "`!blacklistlist` - Views all currently blacklisted users.\n"
+            "`!blacklistserver <id>` - Blacklists an entire server by ID.\n"
+            "`!unblacklistserver <id>` - Removes a server from the blacklist.\n"
             "`!admincmds` - Displays this admin command list."
         ),
         inline=False
@@ -944,10 +992,37 @@ async def blacklistlist_command(ctx):
     await ctx.send(embed=embed)
 
 
+@bot.command(name="blacklistserver")
+@is_admin_or_owner()
+async def blacklistserver_command(ctx, guild_id: int):
+    if guild_id in blacklisted_servers:
+        await ctx.send(f"⚠️ Server ID `{guild_id}` is already blacklisted.", delete_after=5)
+        return
+    
+    blacklisted_servers.add(guild_id)
+    save_json_file(SERVERS_BLACKLIST_FILE, list(blacklisted_servers))
+    await ctx.send(f"🚫 Server with ID `{guild_id}` has been blacklisted from using the bot!")
+
+
+@bot.command(name="unblacklistserver")
+@is_admin_or_owner()
+async def unblacklistserver_command(ctx, guild_id: int):
+    if guild_id not in blacklisted_servers:
+        await ctx.send(f"⚠️ Server ID `{guild_id}` is not blacklisted.", delete_after=5)
+        return
+    
+    blacklisted_servers.remove(guild_id)
+    save_json_file(SERVERS_BLACKLIST_FILE, list(blacklisted_servers))
+    await ctx.send(f"✅ Server with ID `{guild_id}` has been removed from the server blacklist!")
+
+
 # --- MESSAGE LISTENER FOR CODE SOLVING & LEADERBOARD UPDATES ---
 @bot.event
 async def on_message(message: discord.Message):
     if message.author.bot:
+        return
+
+    if message.guild and message.guild.id in blacklisted_servers:
         return
 
     ctx = await bot.get_context(message)
