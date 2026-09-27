@@ -280,7 +280,7 @@ async def process_code_creation(
     if reward_output and not current_desc.endswith(reward_output):
         embed.description = current_desc + reward_output
 
-    embed.color = discord.Color.green()
+    # Color is no longer changed here to green
     try:
         await message.edit(embed=embed)
     except discord.HTTPException:
