@@ -255,8 +255,7 @@ async def process_code_creation(
 
             embed.description = (
                 f"**Created by:** {creator.mention}\n\n"
-                f"**USE CODE:** {displayed_text.strip()}\n\n"
-                f"*Type the full code in chat to solve!*"
+                f"**USE CODE:** {displayed_text.strip()}"
             )
             try:
                 await message.edit(embed=embed)
@@ -280,7 +279,6 @@ async def process_code_creation(
     if reward_output and not current_desc.endswith(reward_output):
         embed.description = current_desc + reward_output
 
-    # Color is no longer changed here to green
     try:
         await message.edit(embed=embed)
     except discord.HTTPException:
@@ -327,8 +325,7 @@ async def process_riddle_creation(
         title="🧩 Riddle Challenge!",
         description=(
             f"**Created by:** {creator.mention}\n\n"
-            f"**Question:** {question}{reward_output}\n\n"
-            f"*Type the answer to the riddle in chat to solve!*"
+            f"**Question:** {question}{reward_output}"
         ),
         color=discord.Color.gold(),
     )
