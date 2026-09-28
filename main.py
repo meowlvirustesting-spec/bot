@@ -765,13 +765,6 @@ async def createcode_slash(
 
     random_digits = "".join(random.choices(string.digits, k=4)) if include_numbers else None
     
-    reward_msg_parts = []
-    if role:
-        reward_msg_parts.append(role.name)
-    if reward_text:
-        reward_msg_parts.append(reward_text)
-    combined_reward_text = " ".join(reward_msg_parts) if reward_msg_parts else "a reward"
-    
     await interaction.followup.send(f"✅ Code creation started in {target_channel.mention}!", ephemeral=True)
 
     sections = split_phrase(clean_code)
@@ -1074,14 +1067,13 @@ async def on_message(message: discord.Message):
                 save_leaderboard()
 
                 # Determine reward text representation
-                reward_desc = ""
+                reward_desc = None
                 if custom_reward_text:
                     reward_desc = custom_reward_text
                 elif role_id and message.guild:
                     role_obj = message.guild.get_role(role_id)
-                    reward_desc = role_obj.name if role_obj else "a role reward"
-                else:
-                    reward_desc = "a code reward"
+                    if role_obj:
+                        reward_desc = role_obj.name
 
                 # Attempt to give role if applicable
                 if role_id and isinstance(message.author, discord.Member) and message.guild:
@@ -1092,10 +1084,15 @@ async def on_message(message: discord.Message):
                         except discord.Forbidden:
                             pass
 
-                # Send required success message format
-                await message.channel.send(
-                    f"{message.author.mention} redeemed a code for \"{reward_desc}\" in {elapsed_seconds} seconds"
-                )
+                # Send required success message format with bold formatting and conditional reward text
+                if reward_desc:
+                    await message.channel.send(
+                        f"{message.author.mention} redeemed the code for **{reward_desc}** in **{elapsed_seconds}** seconds!"
+                    )
+                else:
+                    await message.channel.send(
+                        f"{message.author.mention} redeemed the code in **{elapsed_seconds}** seconds!"
+                    )
 
 
 # --- RUN BOT ---
