@@ -184,6 +184,7 @@ async def process_code_creation(
         "code": full_solution.lower(),
         "ready": False,
         "role_id": reward_role.id if reward_role else None,
+        "reward_text": reward_text,
         "type": "code",
         "start_time": None,
         "troll_target": troll_target,
@@ -308,6 +309,7 @@ async def process_riddle_creation(
         "code": answer.strip().lower(),
         "ready": True,
         "role_id": reward_role.id if reward_role else None,
+        "reward_text": reward_text,
         "type": "riddle",
         "start_time": start_timestamp,
         "troll_target": None,
@@ -765,12 +767,12 @@ async def createcode_slash(
     
     reward_msg_parts = []
     if role:
-        reward_msg_parts.append(role.mention)
+        reward_msg_parts.append(role.name)
     if reward_text:
         reward_msg_parts.append(reward_text)
-    reward_msg = f" with reward {' '.join(reward_msg_parts)}" if reward_msg_parts else ""
+    combined_reward_text = " ".join(reward_msg_parts) if reward_msg_parts else "a reward"
     
-    await interaction.followup.send(f"✅ Code creation started in {target_channel.mention}{reward_msg}!", ephemeral=True)
+    await interaction.followup.send(f"✅ Code creation started in {target_channel.mention}!", ephemeral=True)
 
     sections = split_phrase(clean_code)
     await process_code_creation(
@@ -853,14 +855,7 @@ async def createriddle_slash(
         await interaction.followup.send("❌ Question and answer cannot be empty!", ephemeral=True)
         return
 
-    reward_msg_parts = []
-    if role:
-        reward_msg_parts.append(role.mention)
-    if reward_text:
-        reward_msg_parts.append(reward_text)
-    reward_msg = f" with reward {' '.join(reward_msg_parts)}" if reward_msg_parts else ""
-
-    await interaction.followup.send(f"✅ Riddle created in {target_channel.mention}{reward_msg}!", ephemeral=True)
+    await interaction.followup.send(f"✅ Riddle created in {target_channel.mention}!", ephemeral=True)
 
     await process_riddle_creation(
         target_channel, 
@@ -1057,7 +1052,7 @@ async def on_message(message: discord.Message):
                 elapsed_seconds = round(time.time() - start_time, 2)
 
                 role_id = code_data.get("role_id")
-                challenge_type = code_data.get("type", "code")
+                custom_reward_text = code_data.get("reward_text")
 
                 del active_codes[channel_id]
 
@@ -1078,24 +1073,29 @@ async def on_message(message: discord.Message):
 
                 save_leaderboard()
 
-                time_str = f" in **{elapsed_seconds} seconds**"
+                # Determine reward text representation
+                reward_desc = ""
+                if custom_reward_text:
+                    reward_desc = custom_reward_text
+                elif role_id and message.guild:
+                    role_obj = message.guild.get_role(role_id)
+                    reward_desc = role_obj.name if role_obj else "a role reward"
+                else:
+                    reward_desc = "a code reward"
 
+                # Attempt to give role if applicable
                 if role_id and isinstance(message.author, discord.Member) and message.guild:
                     role = message.guild.get_role(role_id)
                     if role:
                         try:
                             await message.author.add_roles(role)
-                            await message.channel.send(
-                                f"🎉 {message.author.mention} redeemed the {challenge_type} first{time_str} and won the **{role.name}** role!"
-                            )
                         except discord.Forbidden:
-                            await message.channel.send(
-                                f"{message.author.mention} Correct answer{time_str}, but I lack permissions to grant the role!"
-                            )
-                    else:
-                        await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}{time_str}!")
-                else:
-                    await message.channel.send(f"🎉 {message.author.mention} claimed the {challenge_type}{time_str}!")
+                            pass
+
+                # Send required success message format
+                await message.channel.send(
+                    f"{message.author.mention} redeemed a code for \"{reward_desc}\" in {elapsed_seconds} seconds"
+                )
 
 
 # --- RUN BOT ---
