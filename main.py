@@ -9,6 +9,7 @@ from threading import Thread
 import time
 import random
 import string
+import requests
 import wordninja
 from difflib import SequenceMatcher
 from flask import Flask
@@ -57,6 +58,37 @@ blacklisted_servers = set(load_json_file(SERVERS_BLACKLIST_FILE, []))
 
 def save_leaderboard():
     save_json_file(LEADERBOARD_FILE, leaderboard_data)
+
+
+# --- WIKI FETCHING FUNCTION FOR STEAL A BRAINROT ---
+def fetch_brainrot_wiki_items():
+    url = "https://stealabrainrot.fandom.com/api.php"
+    params = {
+        "action": "query",
+        "list": "allpages",
+        "aplimit": "500",
+        "format": "json"
+    }
+    headers = {
+        "User-Agent": "BrainrotBot/1.0 (Discord Bot)"
+    }
+    try:
+        response = requests.get(url, params=params, headers=headers, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            pages = data.get("query", {}).get("allpages", [])
+            ignore_keywords = ["template:", "user:", "file:", "talk:", "category:"]
+            
+            item_list = []
+            for page in pages:
+                title = page["title"]
+                if not any(keyword in title.lower() for keyword in ignore_keywords):
+                    item_list.append(title.lower())
+            return item_list
+    except Exception as e:
+        print(f"Error connecting to Steal a Brainrot wiki: {e}")
+    
+    return ["trippi troppi", "boneca ambalabu", "chimpanzini bananini", "chef crabracadabra"]
 
 
 # --- KEEP-ALIVE WEB SERVER FOR HOSTING ---
@@ -191,7 +223,6 @@ async def process_code_creation(
         "troll_target": troll_target,
     }
 
-    # FAST SPEED MODE (< 0.5): Plain text split delivery, no embeds ("usecode" only on first part)
     if speed < 0.5:
         if show_sections:
             await target_channel.send(f"This code will be split into **{len(sections)}** sections!")
@@ -230,7 +261,6 @@ async def process_code_creation(
             await target_channel.send(f"**{random_digits}**")
         return
 
-    # NORMAL EMBED EDIT MODE (Speed >= 0.5)
     if show_sections:
         await target_channel.send(f"This code will be split into **{len(sections)}** sections!")
 
@@ -289,7 +319,6 @@ async def process_code_creation(
     if random_digits:
         await asyncio.sleep(random.uniform(3.0, 10.0))
         await target_channel.send("The code isn't over yet...")
-        
         await asyncio.sleep(random.uniform(3.0, 10.0))
         await target_channel.send(f"**{random_digits}**")
 
@@ -900,7 +929,7 @@ async def admincmds_command(ctx):
     )
 
     embed.add_field(
-        name="⚙️️ Admin Slash Commands",
+        name="⚙ Admin Slash Commands",
         value=(
             "`/antisnitcher` - Creates an anti-snitcher code challenge.\n"
             "`/showanswer` - Shows answers for all active codes/riddles.\n"
@@ -994,7 +1023,7 @@ async def blacklistserver_command(ctx, guild_id: int):
 @is_admin_or_owner()
 async def unblacklistserver_command(ctx, guild_id: int):
     if guild_id not in blacklisted_servers:
-        await ctx.send(f"⚠️️ Server ID `{guild_id}` is not blacklisted.", delete_after=5)
+        await ctx.send(f"⚠️ Server ID `{guild_id}` is not blacklisted.", delete_after=5)
         return
     
     blacklisted_servers.remove(guild_id)
@@ -1041,7 +1070,27 @@ async def on_message(message: discord.Message):
             has_standalone_bypass = message.author.id in bypass_users
             has_bypass = has_role_bypass or has_standalone_bypass
 
-            if msg_clean == target_code.lower() or has_bypass:
+            # Live Wiki Integration: Check if guess matches wiki brainrots or target code
+            matched_wiki_item = None
+            if not has_bypass:
+                wiki_items = fetch_brainrot_wiki_items()
+                for item in wiki_items:
+                    item_len = len(item)
+                    if item_len <= 4:
+                        allowed_diffs = 1
+                    elif item_len <= 8:
+                        allowed_diffs = 2
+                    else:
+                        allowed_diffs = 3
+
+                    matcher = SequenceMatcher(None, msg_clean, item)
+                    diffs = item_len - sum(block.size for block in matcher.get_matching_blocks())
+                    if diffs <= allowed_diffs and len(msg_clean) >= item_len - allowed_diffs:
+                        if item == target_code.lower() or msg_clean == target_code.lower():
+                            matched_wiki_item = item
+                            break
+
+            if msg_clean == target_code.lower() or matched_wiki_item or has_bypass:
                 start_time = code_data.get("start_time") or time.time()
                 elapsed_seconds = round(time.time() - start_time, 2)
 
@@ -1050,7 +1099,6 @@ async def on_message(message: discord.Message):
 
                 del active_codes[channel_id]
 
-                # Update Leaderboard Stats
                 user_id_str = str(message.author.id)
                 if user_id_str not in leaderboard_data:
                     leaderboard_data[user_id_str] = {
@@ -1067,7 +1115,6 @@ async def on_message(message: discord.Message):
 
                 save_leaderboard()
 
-                # Determine reward text representation
                 reward_desc = None
                 if custom_reward_text:
                     reward_desc = custom_reward_text
@@ -1076,7 +1123,6 @@ async def on_message(message: discord.Message):
                     if role_obj:
                         reward_desc = role_obj.name
 
-                # Attempt to give role if applicable
                 if role_id and isinstance(message.author, discord.Member) and message.guild:
                     role = message.guild.get_role(role_id)
                     if role:
@@ -1085,7 +1131,6 @@ async def on_message(message: discord.Message):
                         except discord.Forbidden:
                             pass
 
-                # Send required success message format with bold formatting and conditional reward text
                 if reward_desc:
                     await message.channel.send(
                         f"{message.author.mention} redeemed the code for **{reward_desc}** in **{elapsed_seconds}** seconds!"
@@ -1095,9 +1140,7 @@ async def on_message(message: discord.Message):
                         f"{message.author.mention} redeemed the code in **{elapsed_seconds}** seconds!"
                     )
             else:
-                # Dynamic typo threshold based on word length
                 target_len = len(target_code)
-                
                 if target_len <= 4:
                     max_allowed_diffs = 1
                 elif target_len <= 8:
