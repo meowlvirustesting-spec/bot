@@ -60,7 +60,7 @@ def save_leaderboard():
     save_json_file(LEADERBOARD_FILE, leaderboard_data)
 
 
-# --- WIKI FETCHING FUNCTION FOR STEAL A BRAINROT ---
+# --- CRASH-PROOF WIKI FETCHING FUNCTION ---
 def fetch_brainrot_wiki_items():
     url = "https://stealabrainrot.fandom.com/api.php"
     params = {
@@ -70,25 +70,33 @@ def fetch_brainrot_wiki_items():
         "format": "json"
     }
     headers = {
-        "User-Agent": "BrainrotBot/1.0 (Discord Bot)"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Bot/1.0"
     }
+    
+    # Fallback list so the bot never crashes if Fandom blocks or times out
+    fallback_items = [
+        "skibidi toilet", "sigma", "rizzler", "fanum tax", "gyatt", 
+        "trippi troppi", "boneca ambalabu", "chimpanzini bananini", "chef crabracadabra"
+    ]
+    
     try:
-        response = requests.get(url, params=params, headers=headers, timeout=5)
+        response = requests.get(url, params=params, headers=headers, timeout=3)
         if response.status_code == 200:
             data = response.json()
             pages = data.get("query", {}).get("allpages", [])
-            ignore_keywords = ["template:", "user:", "file:", "talk:", "category:"]
+            ignore_keywords = ["template:", "user:", "file:", "talk:", "category:", "special:"]
             
             item_list = []
             for page in pages:
-                title = page["title"]
-                if not any(keyword in title.lower() for keyword in ignore_keywords):
+                title = page.get("title", "")
+                if title and not any(keyword in title.lower() for keyword in ignore_keywords):
                     item_list.append(title.lower())
-            return item_list
+            
+            return item_list if item_list else fallback_items
     except Exception as e:
-        print(f"Error connecting to Steal a Brainrot wiki: {e}")
+        print(f"Warning: Could not fetch live wiki items ({e}). Using fallback list.")
     
-    return ["trippi troppi", "boneca ambalabu", "chimpanzini bananini", "chef crabracadabra"]
+    return fallback_items
 
 
 # --- KEEP-ALIVE WEB SERVER FOR HOSTING ---
@@ -101,7 +109,7 @@ def home():
 
 
 def run_flask():
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
 
 
@@ -923,7 +931,7 @@ async def cmds_command(ctx):
 @is_admin_or_owner()
 async def admincmds_command(ctx):
     embed = discord.Embed(
-        title="🛡️ Bot Admin Commands List",
+        title="🛡️️ Bot Admin Commands List",
         description="Here are all available commands for bot administrators:",
         color=discord.Color.dark_purple()
     )
@@ -1070,7 +1078,6 @@ async def on_message(message: discord.Message):
             has_standalone_bypass = message.author.id in bypass_users
             has_bypass = has_role_bypass or has_standalone_bypass
 
-            # Live Wiki Integration: Check if guess matches wiki brainrots or target code
             matched_wiki_item = None
             if not has_bypass:
                 wiki_items = fetch_brainrot_wiki_items()
