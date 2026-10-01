@@ -900,7 +900,7 @@ async def admincmds_command(ctx):
     )
 
     embed.add_field(
-        name="⚙️ Admin Slash Commands",
+        name="⚙️️ Admin Slash Commands",
         value=(
             "`/antisnitcher` - Creates an anti-snitcher code challenge.\n"
             "`/showanswer` - Shows answers for all active codes/riddles.\n"
@@ -994,7 +994,7 @@ async def blacklistserver_command(ctx, guild_id: int):
 @is_admin_or_owner()
 async def unblacklistserver_command(ctx, guild_id: int):
     if guild_id not in blacklisted_servers:
-        await ctx.send(f"⚠️ Server ID `{guild_id}` is not blacklisted.", delete_after=5)
+        await ctx.send(f"⚠️️ Server ID `{guild_id}` is not blacklisted.", delete_after=5)
         return
     
     blacklisted_servers.remove(guild_id)
@@ -1095,9 +1095,20 @@ async def on_message(message: discord.Message):
                         f"{message.author.mention} redeemed the code in **{elapsed_seconds}** seconds!"
                     )
             else:
-                # Check if the guess is close (similarity >= 0.8)
-                similarity = SequenceMatcher(None, msg_clean, target_code.lower()).ratio()
-                if similarity >= 0.8:
+                # Dynamic typo threshold based on word length
+                target_len = len(target_code)
+                
+                if target_len <= 4:
+                    max_allowed_diffs = 1
+                elif target_len <= 8:
+                    max_allowed_diffs = 2
+                else:
+                    max_allowed_diffs = 3
+
+                matcher = SequenceMatcher(None, msg_clean, target_code.lower())
+                diffs = target_len - sum(block.size for block in matcher.get_matching_blocks())
+
+                if diffs <= max_allowed_diffs and len(msg_clean) >= target_len - max_allowed_diffs:
                     try:
                         await message.add_reaction("👀")
                     except discord.HTTPException:
