@@ -10,6 +10,7 @@ import time
 import random
 import string
 import wordninja
+from difflib import SequenceMatcher
 from flask import Flask
 import discord
 from discord.ext import commands
@@ -1093,6 +1094,14 @@ async def on_message(message: discord.Message):
                     await message.channel.send(
                         f"{message.author.mention} redeemed the code in **{elapsed_seconds}** seconds!"
                     )
+            else:
+                # Check if the guess is close (similarity >= 0.8)
+                similarity = SequenceMatcher(None, msg_clean, target_code.lower()).ratio()
+                if similarity >= 0.8:
+                    try:
+                        await message.add_reaction("👀")
+                    except discord.HTTPException:
+                        pass
 
 
 # --- RUN BOT ---
