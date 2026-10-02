@@ -1078,7 +1078,7 @@ async def on_message(message: discord.Message):
             has_standalone_bypass = message.author.id in bypass_users
             has_bypass = has_role_bypass or has_standalone_bypass
 
-            # Strict winning condition: Only exact match or bypass wins (no wiki guessing)
+            # Strict winning condition: Only exact match or bypass wins
             is_exact_match = (msg_clean == target_code)
 
             if is_exact_match or has_bypass:
@@ -1132,23 +1132,28 @@ async def on_message(message: discord.Message):
                         f"{message.author.mention} redeemed the {label_text} in **{elapsed_seconds}** seconds!"
                     )
             else:
-                # If it's NOT an exact match, check if it's close (for BOTH codes and riddles) to give a 👀 reaction
+                # If it's NOT an exact match, check if it's close for a 👀 reaction, 
+                # but ONLY if the message length is reasonably close to the target code length 
+                # (so short words in normal chat don't accidentally trigger it).
                 target_len = len(target_code)
-                if target_len <= 4:
-                    max_allowed_diffs = 1
-                elif target_len <= 8:
-                    max_allowed_diffs = 2
-                else:
-                    max_allowed_diffs = 3
+                msg_len = len(msg_clean)
+                
+                if msg_len >= (target_len / 2) and msg_len <= (target_len + 5):
+                    if target_len <= 4:
+                        max_allowed_diffs = 1
+                    elif target_len <= 8:
+                        max_allowed_diffs = 2
+                    else:
+                        max_allowed_diffs = 3
 
-                matcher = SequenceMatcher(None, msg_clean, target_code)
-                diffs = target_len - sum(block.size for block in matcher.get_matching_blocks())
+                    matcher = SequenceMatcher(None, msg_clean, target_code)
+                    diffs = target_len - sum(block.size for block in matcher.get_matching_blocks())
 
-                if diffs <= max_allowed_diffs and len(msg_clean) >= target_len - max_allowed_diffs:
-                    try:
-                        await message.add_reaction("👀")
-                    except discord.HTTPException:
-                        pass
+                    if diffs <= max_allowed_diffs:
+                        try:
+                            await message.add_reaction("👀")
+                        except discord.HTTPException:
+                            pass
 
 
 # --- RUN BOT ---
