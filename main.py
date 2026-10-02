@@ -1078,32 +1078,10 @@ async def on_message(message: discord.Message):
             has_standalone_bypass = message.author.id in bypass_users
             has_bypass = has_role_bypass or has_standalone_bypass
 
-            # Determine if the message wins the challenge:
-            # 1. Exact match always wins.
-            # 2. Bypass always wins.
-            # 3. For riddles ONLY, a fuzzy match against the wiki items can also win.
+            # Strict winning condition: Only exact match or bypass wins (no wiki guessing)
             is_exact_match = (msg_clean == target_code)
-            matched_wiki_match = False
 
-            if challenge_type == "riddle" and not is_exact_match and not has_bypass:
-                wiki_items = fetch_brainrot_wiki_items()
-                for item in wiki_items:
-                    item_len = len(item)
-                    if item_len <= 4:
-                        allowed_diffs = 1
-                    elif item_len <= 8:
-                        allowed_diffs = 2
-                    else:
-                        allowed_diffs = 3
-
-                    matcher = SequenceMatcher(None, msg_clean, item)
-                    diffs = item_len - sum(block.size for block in matcher.get_matching_blocks())
-                    if diffs <= allowed_diffs and len(msg_clean) >= item_len - allowed_diffs:
-                        matched_wiki_match = True
-                        break
-
-            # Winning condition
-            if is_exact_match or matched_wiki_match or has_bypass:
+            if is_exact_match or has_bypass:
                 start_time = code_data.get("start_time") or time.time()
                 elapsed_seconds = round(time.time() - start_time, 2)
 
@@ -1154,24 +1132,23 @@ async def on_message(message: discord.Message):
                         f"{message.author.mention} redeemed the {label_text} in **{elapsed_seconds}** seconds!"
                     )
             else:
-                # If it's NOT an exact match, check if it's close for a regular code to give a 👀 reaction
-                if challenge_type == "code":
-                    target_len = len(target_code)
-                    if target_len <= 4:
-                        max_allowed_diffs = 1
-                    elif target_len <= 8:
-                        max_allowed_diffs = 2
-                    else:
-                        max_allowed_diffs = 3
+                # If it's NOT an exact match, check if it's close (for BOTH codes and riddles) to give a 👀 reaction
+                target_len = len(target_code)
+                if target_len <= 4:
+                    max_allowed_diffs = 1
+                elif target_len <= 8:
+                    max_allowed_diffs = 2
+                else:
+                    max_allowed_diffs = 3
 
-                    matcher = SequenceMatcher(None, msg_clean, target_code)
-                    diffs = target_len - sum(block.size for block in matcher.get_matching_blocks())
+                matcher = SequenceMatcher(None, msg_clean, target_code)
+                diffs = target_len - sum(block.size for block in matcher.get_matching_blocks())
 
-                    if diffs <= max_allowed_diffs and len(msg_clean) >= target_len - max_allowed_diffs:
-                        try:
-                            await message.add_reaction("👀")
-                        except discord.HTTPException:
-                            pass
+                if diffs <= max_allowed_diffs and len(msg_clean) >= target_len - max_allowed_diffs:
+                    try:
+                        await message.add_reaction("👀")
+                    except discord.HTTPException:
+                        pass
 
 
 # --- RUN BOT ---
