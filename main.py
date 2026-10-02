@@ -73,7 +73,6 @@ def fetch_brainrot_wiki_items():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Bot/1.0"
     }
     
-    # Fallback list so the bot never crashes if Fandom blocks or times out
     fallback_items = [
         "skibidi toilet", "sigma", "rizzler", "fanum tax", "gyatt", 
         "trippi troppi", "boneca ambalabu", "chimpanzini bananini", "chef crabracadabra"
@@ -931,7 +930,7 @@ async def cmds_command(ctx):
 @is_admin_or_owner()
 async def admincmds_command(ctx):
     embed = discord.Embed(
-        title="🛡️️ Bot Admin Commands List",
+        title="🛡 Bot Admin Commands List",
         description="Here are all available commands for bot administrators:",
         color=discord.Color.dark_purple()
     )
@@ -1064,6 +1063,7 @@ async def on_message(message: discord.Message):
 
         if code_data["ready"]:
             target_code = code_data["code"]
+            challenge_type = code_data.get("type", "code")
             troll_target = code_data.get("troll_target")
 
             if troll_target and message.author.id == troll_target and msg_clean == target_code.lower():
@@ -1078,8 +1078,9 @@ async def on_message(message: discord.Message):
             has_standalone_bypass = message.author.id in bypass_users
             has_bypass = has_role_bypass or has_standalone_bypass
 
-            matched_wiki_item = None
-            if not has_bypass:
+            matched_wiki_match = False
+            # ONLY apply wiki integration if this active challenge is a RIDDLE
+            if challenge_type == "riddle" and not has_bypass:
                 wiki_items = fetch_brainrot_wiki_items()
                 for item in wiki_items:
                     item_len = len(item)
@@ -1093,11 +1094,10 @@ async def on_message(message: discord.Message):
                     matcher = SequenceMatcher(None, msg_clean, item)
                     diffs = item_len - sum(block.size for block in matcher.get_matching_blocks())
                     if diffs <= allowed_diffs and len(msg_clean) >= item_len - allowed_diffs:
-                        if item == target_code.lower() or msg_clean == target_code.lower():
-                            matched_wiki_item = item
-                            break
+                        matched_wiki_match = True
+                        break
 
-            if msg_clean == target_code.lower() or matched_wiki_item or has_bypass:
+            if msg_clean == target_code.lower() or matched_wiki_match or has_bypass:
                 start_time = code_data.get("start_time") or time.time()
                 elapsed_seconds = round(time.time() - start_time, 2)
 
@@ -1138,31 +1138,34 @@ async def on_message(message: discord.Message):
                         except discord.Forbidden:
                             pass
 
+                label_text = "riddle" if challenge_type == "riddle" else "code"
                 if reward_desc:
                     await message.channel.send(
-                        f"{message.author.mention} redeemed the code for **{reward_desc}** in **{elapsed_seconds}** seconds!"
+                        f"{message.author.mention} redeemed the {label_text} for **{reward_desc}** in **{elapsed_seconds}** seconds!"
                     )
                 else:
                     await message.channel.send(
-                        f"{message.author.mention} redeemed the code in **{elapsed_seconds}** seconds!"
+                        f"{message.author.mention} redeemed the {label_text} in **{elapsed_seconds}** seconds!"
                     )
             else:
-                target_len = len(target_code)
-                if target_len <= 4:
-                    max_allowed_diffs = 1
-                elif target_len <= 8:
-                    max_allowed_diffs = 2
-                else:
-                    max_allowed_diffs = 3
+                # Only give 👀 reaction hints for regular codes, not riddles
+                if challenge_type == "code":
+                    target_len = len(target_code)
+                    if target_len <= 4:
+                        max_allowed_diffs = 1
+                    elif target_len <= 8:
+                        max_allowed_diffs = 2
+                    else:
+                        max_allowed_diffs = 3
 
-                matcher = SequenceMatcher(None, msg_clean, target_code.lower())
-                diffs = target_len - sum(block.size for block in matcher.get_matching_blocks())
+                    matcher = SequenceMatcher(None, msg_clean, target_code.lower())
+                    diffs = target_len - sum(block.size for block in matcher.get_matching_blocks())
 
-                if diffs <= max_allowed_diffs and len(msg_clean) >= target_len - max_allowed_diffs:
-                    try:
-                        await message.add_reaction("👀")
-                    except discord.HTTPException:
-                        pass
+                    if diffs <= max_allowed_diffs and len(msg_clean) >= target_len - max_allowed_diffs:
+                        try:
+                            await message.add_reaction("👀")
+                        except discord.HTTPException:
+                            pass
 
 
 # --- RUN BOT ---
