@@ -1079,8 +1079,8 @@ async def on_message(message: discord.Message):
             has_bypass = has_role_bypass or has_standalone_bypass
 
             matched_wiki_match = False
-            # ONLY apply wiki integration if this active challenge is a RIDDLE
-            if challenge_type == "riddle" and not has_bypass:
+            # ONLY check wiki items if it's a riddle AND not an exact answer
+            if challenge_type == "riddle" and not has_bypass and msg_clean != target_code.lower():
                 wiki_items = fetch_brainrot_wiki_items()
                 for item in wiki_items:
                     item_len = len(item)
@@ -1097,6 +1097,7 @@ async def on_message(message: discord.Message):
                         matched_wiki_match = True
                         break
 
+            # To win: must match exact target code OR wiki match (for riddles) OR have bypass
             if msg_clean == target_code.lower() or matched_wiki_match or has_bypass:
                 start_time = code_data.get("start_time") or time.time()
                 elapsed_seconds = round(time.time() - start_time, 2)
@@ -1148,7 +1149,7 @@ async def on_message(message: discord.Message):
                         f"{message.author.mention} redeemed the {label_text} in **{elapsed_seconds}** seconds!"
                     )
             else:
-                # Only give 👀 reaction hints for regular codes, not riddles
+                # If it's a regular code challenge, check if the guess is close and just drop a 👀 reaction
                 if challenge_type == "code":
                     target_len = len(target_code)
                     if target_len <= 4:
