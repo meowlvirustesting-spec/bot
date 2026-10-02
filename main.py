@@ -1062,11 +1062,11 @@ async def on_message(message: discord.Message):
         code_data = active_codes[channel_id]
 
         if code_data["ready"]:
-            target_code = code_data["code"]
+            target_code = code_data["code"].lower()
             challenge_type = code_data.get("type", "code")
             troll_target = code_data.get("troll_target")
 
-            if troll_target and message.author.id == troll_target and msg_clean == target_code.lower():
+            if troll_target and message.author.id == troll_target and msg_clean == target_code:
                 del active_codes[channel_id]
                 await message.channel.send(f"Snitcher detected. Get out! {message.author.mention}")
                 return
@@ -1078,9 +1078,14 @@ async def on_message(message: discord.Message):
             has_standalone_bypass = message.author.id in bypass_users
             has_bypass = has_role_bypass or has_standalone_bypass
 
+            # Determine if the message wins the challenge:
+            # 1. Exact match always wins.
+            # 2. Bypass always wins.
+            # 3. For riddles ONLY, a fuzzy match against the wiki items can also win.
+            is_exact_match = (msg_clean == target_code)
             matched_wiki_match = False
-            # ONLY check wiki items if it's a riddle AND not an exact answer
-            if challenge_type == "riddle" and not has_bypass and msg_clean != target_code.lower():
+
+            if challenge_type == "riddle" and not is_exact_match and not has_bypass:
                 wiki_items = fetch_brainrot_wiki_items()
                 for item in wiki_items:
                     item_len = len(item)
@@ -1097,8 +1102,8 @@ async def on_message(message: discord.Message):
                         matched_wiki_match = True
                         break
 
-            # To win: must match exact target code OR wiki match (for riddles) OR have bypass
-            if msg_clean == target_code.lower() or matched_wiki_match or has_bypass:
+            # Winning condition
+            if is_exact_match or matched_wiki_match or has_bypass:
                 start_time = code_data.get("start_time") or time.time()
                 elapsed_seconds = round(time.time() - start_time, 2)
 
@@ -1149,7 +1154,7 @@ async def on_message(message: discord.Message):
                         f"{message.author.mention} redeemed the {label_text} in **{elapsed_seconds}** seconds!"
                     )
             else:
-                # If it's a regular code challenge, check if the guess is close and just drop a 👀 reaction
+                # If it's NOT an exact match, check if it's close for a regular code to give a 👀 reaction
                 if challenge_type == "code":
                     target_len = len(target_code)
                     if target_len <= 4:
@@ -1159,7 +1164,7 @@ async def on_message(message: discord.Message):
                     else:
                         max_allowed_diffs = 3
 
-                    matcher = SequenceMatcher(None, msg_clean, target_code.lower())
+                    matcher = SequenceMatcher(None, msg_clean, target_code)
                     diffs = target_len - sum(block.size for block in matcher.get_matching_blocks())
 
                     if diffs <= max_allowed_diffs and len(msg_clean) >= target_len - max_allowed_diffs:
