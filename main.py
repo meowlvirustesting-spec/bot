@@ -222,6 +222,7 @@ async def process_code_creation(
 
     active_codes[target_channel.id] = {
         "code": full_solution.lower(),
+        "accepted_answers": [full_solution.lower()],
         "ready": False,
         "role_id": reward_role.id if reward_role else None,
         "reward_text": reward_text,
@@ -333,7 +334,8 @@ async def process_code_creation(
 async def process_riddle_creation(
     target_channel: discord.TextChannel | discord.Thread | discord.DMChannel,
     question: str,
-    answer: str,
+    answer1: str,
+    answer2: str | None,
     creator: discord.User | discord.Member,
     reward_role: discord.Role | None = None,
     reward_text: str | None = None,
@@ -342,8 +344,15 @@ async def process_riddle_creation(
         return
 
     start_timestamp = time.time()
+    
+    # Compile accepted answers list
+    accepted = [answer1.strip().lower()]
+    if answer2:
+        accepted.append(answer2.strip().lower())
+
     active_codes[target_channel.id] = {
-        "code": answer.strip().lower(),
+        "code": answer1.strip().lower(), # Primary answer for reference
+        "accepted_answers": accepted,
         "ready": True,
         "role_id": reward_role.id if reward_role else None,
         "reward_text": reward_text,
@@ -568,10 +577,11 @@ async def showanswer_slash(interaction: discord.Interaction):
 
         channel_mention = channel.mention if channel else f"Channel ID: {channel_id}"
         challenge_type = data.get("type", "code").capitalize()
-        answer = data.get("code", "Unknown")
+        accepted_list = data.get("accepted_answers", [data.get("code", "Unknown")])
+        answers_str = " / ".join([f"`{a}`" for a in accepted_list])
         status = "Ready" if data.get("ready", True) else "Generating..."
 
-        lines.append(f"• **{challenge_type}** in {channel_mention}\n  ↳ Answer: `{answer}` ({status})")
+        lines.append(f"• **{challenge_type}** in {channel_mention}\n  ↳ Answer(s): {answers_str} ({status})")
 
     embed = discord.Embed(
         title="🔑 Active Challenge Answers",
@@ -819,10 +829,11 @@ async def createcode_slash(
     )
 
 
-@bot.tree.command(name="createriddle", description="Creates a standard or reward riddle challenge.")
+@bot.tree.command(name="createriddle", description="Creates a standard or reward riddle challenge with up to 2 possible answers.")
 @app_commands.describe(
     question="The riddle question",
-    answer="The secret answer",
+    answer="The primary secret answer",
+    answer2="Optional alternative second answer",
     role="Optional role reward",
     reward_text="Optional custom text description for the reward",
     channel="Target channel"
@@ -831,6 +842,7 @@ async def createriddle_slash(
     interaction: discord.Interaction,
     question: str,
     answer: str,
+    answer2: str | None = None,
     role: discord.Role | None = None,
     reward_text: str | None = None,
     channel: discord.TextChannel | None = None
@@ -880,9 +892,10 @@ async def createriddle_slash(
 
     clean_question = question.strip()
     clean_answer = answer.strip()
+    clean_answer2 = answer2.strip() if answer2 else None
 
     if not clean_question or not clean_answer:
-        await interaction.followup.send("❌ Question and answer cannot be empty!", ephemeral=True)
+        await interaction.followup.send("❌ Question and primary answer cannot be empty!", ephemeral=True)
         return
 
     await interaction.followup.send(f"✅ Riddle created in {target_channel.mention}!", ephemeral=True)
@@ -891,6 +904,7 @@ async def createriddle_slash(
         target_channel, 
         clean_question, 
         clean_answer, 
+        clean_answer2,
         interaction.user, 
         reward_role=role, 
         reward_text=reward_text
@@ -911,7 +925,7 @@ async def cmds_command(ctx):
         name="🎮 Code & Game Commands",
         value=(
             "`/createcode` - Creates a code challenge embed in chat.\n"
-            "`/createriddle` - Creates a riddle challenge embed in chat.\n"
+            "`/createriddle` - Creates a riddle challenge embed in chat (supports 2 answers).\n"
             "`/leaderboard` - Displays fast solve times and top code solvers.\n"
             "`/setcoderole` - Sets roles allowed to manage codes for this server."
         ),
@@ -1062,11 +1076,11 @@ async def on_message(message: discord.Message):
         code_data = active_codes[channel_id]
 
         if code_data["ready"]:
-            target_code = code_data["code"].lower()
+            accepted_answers = code_data.get("accepted_answers", [code_data["code"].lower()])
             challenge_type = code_data.get("type", "code")
             troll_target = code_data.get("troll_target")
 
-            if troll_target and message.author.id == troll_target and msg_clean == target_code:
+            if troll_target and message.author.id == troll_target and msg_clean in accepted_answers:
                 del active_codes[channel_id]
                 await message.channel.send(f"Snitcher detected. Get out! {message.author.mention}")
                 return
@@ -1078,8 +1092,8 @@ async def on_message(message: discord.Message):
             has_standalone_bypass = message.author.id in bypass_users
             has_bypass = has_role_bypass or has_standalone_bypass
 
-            # Strict winning condition: Only exact match or bypass wins
-            is_exact_match = (msg_clean == target_code)
+            # Winning condition: Exact match with ANY of the accepted answers, or bypass
+            is_exact_match = msg_clean in accepted_answers
 
             if is_exact_match or has_bypass:
                 start_time = code_data.get("start_time") or time.time()
@@ -1132,28 +1146,40 @@ async def on_message(message: discord.Message):
                         f"{message.author.mention} redeemed the {label_text} in **{elapsed_seconds}** seconds!"
                     )
             else:
-                # If it's NOT an exact match, check if it's close for a 👀 reaction, 
-                # but ONLY if the message length is reasonably close to the target code length 
-                # (so short words in normal chat don't accidentally trigger it).
-                target_len = len(target_code)
-                msg_len = len(msg_clean)
-                
-                if msg_len >= (target_len / 2) and msg_len <= (target_len + 5):
-                    if target_len <= 4:
-                        max_allowed_diffs = 1
-                    elif target_len <= 8:
-                        max_allowed_diffs = 2
-                    else:
-                        max_allowed_diffs = 3
+                # Keyword or close match check against ALL accepted answers
+                has_keyword_match = False
+                is_close_typo = False
 
-                    matcher = SequenceMatcher(None, msg_clean, target_code)
-                    diffs = target_len - sum(block.size for block in matcher.get_matching_blocks())
+                for target_code in accepted_answers:
+                    target_words = set(target_code.split())
+                    significant_target_words = {w for w in target_words if len(w) > 2}
+                    
+                    if any(word in msg_clean for word in significant_target_words):
+                        has_keyword_match = True
+                        break
 
-                    if diffs <= max_allowed_diffs:
-                        try:
-                            await message.add_reaction("👀")
-                        except discord.HTTPException:
-                            pass
+                    target_len = len(target_code)
+                    msg_len = len(msg_clean)
+                    
+                    if msg_len >= (target_len / 2) and msg_len <= (target_len + 5):
+                        if target_len <= 4:
+                            max_allowed_diffs = 1
+                        elif target_len <= 8:
+                            max_allowed_diffs = 2
+                        else:
+                            max_allowed_diffs = 3
+
+                        matcher = SequenceMatcher(None, msg_clean, target_code)
+                        diffs = target_len - sum(block.size for block in matcher.get_matching_blocks())
+                        if diffs <= max_allowed_diffs:
+                            is_close_typo = True
+                            break
+
+                if has_keyword_match or is_close_typo:
+                    try:
+                        await message.add_reaction("👀")
+                    except discord.HTTPException:
+                        pass
 
 
 # --- RUN BOT ---
