@@ -213,7 +213,8 @@ async def process_code_creation(
     random_digits: str | None = None,
     speed: float = 1.3,
     show_sections: bool = False,
-    troll_target: int | None = None
+    troll_target: int | None = None,
+    required_role: discord.Role | None = None
 ):
     if target_channel.guild and target_channel.guild.id in blacklisted_servers:
         return
@@ -229,7 +230,11 @@ async def process_code_creation(
         "type": "code",
         "start_time": None,
         "troll_target": troll_target,
+        "creator_id": creator.id,
+        "required_role_id": required_role.id if required_role else None,
     }
+
+    req_text = f"\n**Required Role:** {required_role.mention}" if required_role else ""
 
     if speed < 0.5:
         if show_sections:
@@ -259,8 +264,9 @@ async def process_code_creation(
             reward_pieces.append(reward_role.mention)
         if reward_text:
             reward_pieces.append(reward_text)
-        if reward_pieces:
-            await target_channel.send(f"**Reward:** {' '.join(reward_pieces)}")
+        if reward_pieces or req_text:
+            reward_str = f"**Reward:** {' '.join(reward_pieces)}" if reward_pieces else ""
+            await target_channel.send(f"{reward_str}{req_text}".strip())
 
         if random_digits:
             await asyncio.sleep(random.uniform(3.0, 10.0))
@@ -314,6 +320,8 @@ async def process_code_creation(
         reward_pieces.append(reward_text)
     
     reward_output = f"\n**Reward:** {' '.join(reward_pieces)}" if reward_pieces else ""
+    if required_role:
+        reward_output += f"\n**Required Role:** {required_role.mention}"
     
     current_desc = embed.description or ""
     if reward_output and not current_desc.endswith(reward_output):
@@ -339,19 +347,19 @@ async def process_riddle_creation(
     creator: discord.User | discord.Member,
     reward_role: discord.Role | None = None,
     reward_text: str | None = None,
+    required_role: discord.Role | None = None,
 ):
     if target_channel.guild and target_channel.guild.id in blacklisted_servers:
         return
 
     start_timestamp = time.time()
     
-    # Compile accepted answers list
     accepted = [answer1.strip().lower()]
     if answer2:
         accepted.append(answer2.strip().lower())
 
     active_codes[target_channel.id] = {
-        "code": answer1.strip().lower(), # Primary answer for reference
+        "code": answer1.strip().lower(),
         "accepted_answers": accepted,
         "ready": True,
         "role_id": reward_role.id if reward_role else None,
@@ -359,6 +367,8 @@ async def process_riddle_creation(
         "type": "riddle",
         "start_time": start_timestamp,
         "troll_target": None,
+        "creator_id": creator.id,
+        "required_role_id": required_role.id if required_role else None,
     }
 
     reward_pieces = []
@@ -368,6 +378,8 @@ async def process_riddle_creation(
         reward_pieces.append(reward_text)
 
     reward_output = f"\n**Reward:** {' '.join(reward_pieces)}" if reward_pieces else ""
+    if required_role:
+        reward_output += f"\n**Required Role:** {required_role.mention}"
 
     embed = discord.Embed(
         title="🧩 Riddle Challenge!",
@@ -602,6 +614,7 @@ async def showanswer_slash(interaction: discord.Interaction):
     show_sections="Show section count message",
     role="Optional role reward",
     reward_text="Optional custom text description for the reward",
+    required_role="Optional role required to answer this code",
     channel="Target channel"
 )
 async def antisnitcher_slash(
@@ -612,6 +625,7 @@ async def antisnitcher_slash(
     show_sections: bool = False,
     role: discord.Role | None = None,
     reward_text: str | None = None,
+    required_role: discord.Role | None = None,
     channel: discord.TextChannel | None = None
 ):
     await interaction.response.defer(ephemeral=True)
@@ -650,7 +664,8 @@ async def antisnitcher_slash(
         random_digits=random_digits,
         speed=speed,
         show_sections=show_sections,
-        troll_target=troll_target_id
+        troll_target=troll_target_id,
+        required_role=required_role
     )
 
 
@@ -749,6 +764,7 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
     show_sections="Show section count message",
     role="Optional role reward",
     reward_text="Optional custom text description for the reward",
+    required_role="Optional role required to answer this code",
     channel="Target channel"
 )
 async def createcode_slash(
@@ -759,6 +775,7 @@ async def createcode_slash(
     show_sections: bool = False,
     role: discord.Role | None = None,
     reward_text: str | None = None,
+    required_role: discord.Role | None = None,
     channel: discord.TextChannel | None = None
 ):
     await interaction.response.defer(ephemeral=True)
@@ -825,7 +842,8 @@ async def createcode_slash(
         random_digits=random_digits,
         speed=speed,
         show_sections=show_sections,
-        troll_target=None
+        troll_target=None,
+        required_role=required_role
     )
 
 
@@ -836,6 +854,7 @@ async def createcode_slash(
     answer2="Optional alternative second answer",
     role="Optional role reward",
     reward_text="Optional custom text description for the reward",
+    required_role="Optional role required to answer this riddle",
     channel="Target channel"
 )
 async def createriddle_slash(
@@ -845,6 +864,7 @@ async def createriddle_slash(
     answer2: str | None = None,
     role: discord.Role | None = None,
     reward_text: str | None = None,
+    required_role: discord.Role | None = None,
     channel: discord.TextChannel | None = None
 ):
     await interaction.response.defer(ephemeral=True)
@@ -907,7 +927,8 @@ async def createriddle_slash(
         clean_answer2,
         interaction.user, 
         reward_role=role, 
-        reward_text=reward_text
+        reward_text=reward_text,
+        required_role=required_role
     )
 
 
@@ -1032,7 +1053,7 @@ async def blacklistlist_command(ctx):
 @is_admin_or_owner()
 async def blacklistserver_command(ctx, guild_id: int):
     if guild_id in blacklisted_servers:
-        await ctx.send(f"⚠️ Server ID `{guild_id}` is already blacklisted.", delete_after=5)
+        await ctx.send(f"⚠️️ Server ID `{guild_id}` is already blacklisted.", delete_after=5)
         return
     
     blacklisted_servers.add(guild_id)
@@ -1076,6 +1097,12 @@ async def on_message(message: discord.Message):
         code_data = active_codes[channel_id]
 
         if code_data["ready"]:
+            creator_id = code_data.get("creator_id")
+            
+            # Prevent the creator from answering their own code/riddle
+            if creator_id and message.author.id == creator_id:
+                return
+
             accepted_answers = code_data.get("accepted_answers", [code_data["code"].lower()])
             challenge_type = code_data.get("type", "code")
             troll_target = code_data.get("troll_target")
@@ -1091,6 +1118,19 @@ async def on_message(message: discord.Message):
 
             has_standalone_bypass = message.author.id in bypass_users
             has_bypass = has_role_bypass or has_standalone_bypass
+
+            # Check required role requirement (unless bypassed)
+            required_role_id = code_data.get("required_role_id")
+            has_required_role = True
+            if required_role_id and not has_bypass and message.guild:
+                if isinstance(message.author, discord.Member):
+                    has_required_role = any(role.id == required_role_id for role in message.author.roles)
+                else:
+                    has_required_role = False
+
+            # If user lacks the required role, ignore their message for this puzzle
+            if not has_required_role:
+                return
 
             # Winning condition: Exact match with ANY of the accepted answers, or bypass
             is_exact_match = msg_clean in accepted_answers
