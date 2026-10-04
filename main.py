@@ -1053,7 +1053,7 @@ async def blacklistlist_command(ctx):
 @is_admin_or_owner()
 async def blacklistserver_command(ctx, guild_id: int):
     if guild_id in blacklisted_servers:
-        await ctx.send(f"⚠️️ Server ID `{guild_id}` is already blacklisted.", delete_after=5)
+        await ctx.send(f"⚠️ Server ID `{guild_id}` is already blacklisted.", delete_after=5)
         return
     
     blacklisted_servers.add(guild_id)
@@ -1178,13 +1178,12 @@ async def on_message(message: discord.Message):
 
                 label_text = "riddle" if challenge_type == "riddle" else "code"
                 if reward_desc:
-                    await message.channel.send(
-                        f"{message.author.mention} redeemed the {label_text} for **{reward_desc}** in **{elapsed_seconds}** seconds!"
-                    )
+                    embed_desc = f"{message.author.mention} redeemed the {label_text} for **{reward_desc}** in **{elapsed_seconds}** seconds!"
                 else:
-                    await message.channel.send(
-                        f"{message.author.mention} redeemed the {label_text} in **{elapsed_seconds}** seconds!"
-                    )
+                    embed_desc = f"{message.author.mention} redeemed the {label_text} in **{elapsed_seconds}** seconds!"
+
+                success_embed = discord.Embed(description=embed_desc, color=discord.Color.green())
+                await message.channel.send(embed=success_embed)
             else:
                 # Keyword or close match check against ALL accepted answers
                 has_keyword_match = False
