@@ -243,18 +243,18 @@ async def process_code_creation(
         displayed_text = ""
         has_spaces = " " in clean_code
 
-        async with target_channel.typing():
-            for i, section in enumerate(sections):
-                await asyncio.sleep(speed)
-                if has_spaces:
-                    displayed_text += section + " "
-                else:
-                    displayed_text += section
+        for i, section in enumerate(sections):
+            await target_channel.trigger_typing()
+            await asyncio.sleep(speed)
+            if has_spaces:
+                displayed_text += section + " "
+            else:
+                displayed_text += section
 
-                if i == 0:
-                    await target_channel.send(f"**USE CODE:** {displayed_text.strip()}")
-                else:
-                    await target_channel.send(displayed_text.strip())
+            if i == 0:
+                await target_channel.send(f"**USE CODE:** {displayed_text.strip()}")
+            else:
+                await target_channel.send(displayed_text.strip())
 
         active_codes[target_channel.id]["ready"] = True
         active_codes[target_channel.id]["start_time"] = time.time()
@@ -291,22 +291,22 @@ async def process_code_creation(
     displayed_text = ""
     has_spaces = " " in clean_code
 
-    async with target_channel.typing():
-        for section in sections:
-            await asyncio.sleep(speed)
-            if has_spaces:
-                displayed_text += section + " "
-            else:
-                displayed_text += section
+    for section in sections:
+        await target_channel.trigger_typing()
+        await asyncio.sleep(speed)
+        if has_spaces:
+            displayed_text += section + " "
+        else:
+            displayed_text += section
 
-            embed.description = (
-                f"**Created by:** {creator.mention}\n\n"
-                f"**USE CODE:** {displayed_text.strip()}"
-            )
-            try:
-                await message.edit(embed=embed)
-            except discord.HTTPException:
-                pass
+        embed.description = (
+            f"**Created by:** {creator.mention}\n\n"
+            f"**USE CODE:** {displayed_text.strip()}"
+        )
+        try:
+            await message.edit(embed=embed)
+        except discord.HTTPException:
+            pass
 
     active_codes[target_channel.id]["ready"] = True
     active_codes[target_channel.id]["start_time"] = time.time()
