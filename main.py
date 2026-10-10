@@ -7,6 +7,7 @@ import json
 import asyncio
 from threading import Thread
 import time
+import math
 import random
 import string
 import requests
@@ -60,42 +61,82 @@ def save_leaderboard():
     save_json_file(LEADERBOARD_FILE, leaderboard_data)
 
 
-# --- CRASH-PROOF WIKI FETCHING FUNCTION ---
-def fetch_brainrot_wiki_items():
-    url = "https://stealabrainrot.fandom.com/api.php"
-    params = {
-        "action": "query",
-        "list": "allpages",
-        "aplimit": "500",
-        "format": "json"
-    }
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Bot/1.0"
-    }
-    
-    fallback_items = [
-        "skibidi toilet", "sigma", "rizzler", "fanum tax", "gyatt", 
-        "trippi troppi", "boneca ambalabu", "chimpanzini bananini", "chef crabracadabra"
-    ]
-    
-    try:
-        response = requests.get(url, params=params, headers=headers, timeout=3)
-        if response.status_code == 200:
-            data = response.json()
-            pages = data.get("query", {}).get("allpages", [])
-            ignore_keywords = ["template:", "user:", "file:", "talk:", "category:", "special:"]
-            
-            item_list = []
-            for page in pages:
-                title = page.get("title", "")
-                if title and not any(keyword in title.lower() for keyword in ignore_keywords):
-                    item_list.append(title.lower())
-            
-            return item_list if item_list else fallback_items
-    except Exception as e:
-        print(f"Warning: Could not fetch live wiki items ({e}). Using fallback list.")
-    
-    return fallback_items
+# --- COUNTRY COORDINATE DATASET ---
+COUNTRY_DATA = {
+    "united states": (37.0902, -95.7129, "United States"),
+    "usa": (37.0902, -95.7129, "United States"),
+    "canada": (56.1304, -106.3468, "Canada"),
+    "mexico": (23.6345, -102.5528, "Mexico"),
+    "brazil": (-14.2350, -51.9253, "Brazil"),
+    "argentina": (-38.4161, -63.6167, "Argentina"),
+    "united kingdom": (55.3781, -3.4360, "United Kingdom"),
+    "uk": (55.3781, -3.4360, "United Kingdom"),
+    "france": (46.2276, 2.2137, "France"),
+    "germany": (51.1657, 10.4515, "Germany"),
+    "italy": (41.8719, 12.5674, "Italy"),
+    "spain": (40.4637, -3.7492, "Spain"),
+    "portugal": (39.3999, -8.2245, "Portugal"),
+    "japan": (36.2048, 138.2529, "Japan"),
+    "china": (35.8617, 104.1954, "China"),
+    "india": (20.5937, 78.9629, "India"),
+    "australia": (-25.2744, 133.7751, "Australia"),
+    "russia": (61.5240, 105.3188, "Russia"),
+    "egypt": (26.8206, 30.8025, "Egypt"),
+    "south africa": (-30.5595, 22.9375, "South Africa"),
+    "nigeria": (9.0820, 8.6753, "Nigeria"),
+    "kenya": (-1.286389, 36.817223, "Kenya"),
+    "south korea": (35.9078, 127.7669, "South Korea"),
+    "indonesia": (-0.7893, 113.9213, "Indonesia"),
+    "saudi arabia": (23.8859, 45.0792, "Saudi Arabia"),
+    "turkey": (38.9637, 35.2433, "Turkey"),
+    "norway": (60.4720, 8.4689, "Norway"),
+    "sweden": (60.1282, 18.6435, "Sweden"),
+    "finland": (61.9241, 25.7482, "Finland"),
+    "poland": (51.9194, 19.1451, "Poland"),
+    "ukraine": (48.3794, 31.1656, "Ukraine"),
+    "greece": (39.0742, 21.8243, "Greece"),
+    "thailand": (15.8700, 100.9925, "Thailand"),
+    "vietnam": (14.0583, 108.2772, "Vietnam"),
+    "philippines": (12.8797, 121.7740, "Philippines"),
+    "new zealand": (-40.9006, 174.8860, "New Zealand"),
+    "chile": (-35.6751, -71.5430, "Chile"),
+    "colombia": (4.5709, -74.2973, "Colombia"),
+    "peru": (-9.1899, -75.0152, "Peru"),
+    "morocco": (31.7917, -7.0926, "Morocco"),
+    "iceland": (64.9631, -19.0208, "Iceland"),
+    "ireland": (53.1424, -7.6921, "Ireland"),
+    "netherlands": (52.1326, 5.2913, "Netherlands"),
+    "belgium": (50.5039, 4.4699, "Belgium"),
+    "switzerland": (46.8182, 8.2275, "Switzerland"),
+    "austria": (47.5162, 14.5501, "Austria"),
+    "algeria": (28.0339, 1.6596, "Algeria"),
+    "pakistan": (30.3753, 69.3451, "Pakistan"),
+}
+
+
+def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
+    r = 6371  # Earth's radius in km
+    d_lat = math.radians(lat2 - lat1)
+    d_lon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(d_lat / 2) ** 2
+        + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(d_lon / 2) ** 2
+    )
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return int(r * c)
+
+
+def get_temperature_feedback(dist_km: int) -> tuple[str, str]:
+    if dist_km < 1000:
+        return "🔴 VERY HOT", "🔥"
+    elif dist_km < 2500:
+        return "🟧 HOT", "♨️"
+    elif dist_km < 5000:
+        return "🟨 WARM", "☀️"
+    elif dist_km < 8000:
+        return "🟦 COLD", "🌧️"
+    else:
+        return "🧊 FREEZING", "❄️"
 
 
 # --- KEEP-ALIVE WEB SERVER FOR HOSTING ---
@@ -468,6 +509,101 @@ async def process_wordle_creation(
 
 
 # --- SLASH COMMANDS ---
+@bot.tree.command(name="guessthemysterycountry", description="Starts a mystery country guessing game!")
+@app_commands.describe(
+    country="Optional: Pick a specific mystery country to guess (Leave empty for random)",
+    role="Optional role reward",
+    reward_text="Optional custom text description for the reward",
+    required_role="Optional role required to guess in this game",
+    channel="Target channel"
+)
+async def guessthemysterycountry_slash(
+    interaction: discord.Interaction,
+    country: str | None = None,
+    role: discord.Role | None = None,
+    reward_text: str | None = None,
+    required_role: discord.Role | None = None,
+    channel: discord.TextChannel | None = None
+):
+    await interaction.response.defer(ephemeral=True)
+
+    if interaction.guild and interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
+
+    if interaction.user.id in blacklisted_users:
+        await interaction.followup.send("🚫 You are blacklisted from using bot commands!", ephemeral=True)
+        return
+
+    if not user_can_manage_codes(interaction.user, interaction.guild):
+        await interaction.followup.send("❌ You do not have permission to start country guessing games!", ephemeral=True)
+        return
+
+    target_channel = channel or interaction.channel
+    if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+        await interaction.followup.send("❌ Invalid channel destination!", ephemeral=True)
+        return
+
+    # Select user-specified country or random
+    if country:
+        clean_c = country.strip().lower()
+        if clean_c not in COUNTRY_DATA:
+            available_list = ", ".join([f"`{c.capitalize()}`" for c in sorted(list(set(k for k in COUNTRY_DATA.keys() if len(k) > 3)))])
+            await interaction.followup.send(
+                f"❌ Country **'{country}'** is not in the dataset!\n\n**Supported Countries:** {available_list[:1500]}...",
+                ephemeral=True
+            )
+            return
+        chosen_key = clean_c
+    else:
+        chosen_key = random.choice(list(COUNTRY_DATA.keys()))
+
+    lat, lon, official_name = COUNTRY_DATA[chosen_key]
+
+    reward_pieces = []
+    if role:
+        reward_pieces.append(role.mention)
+    if reward_text:
+        reward_pieces.append(reward_text)
+
+    reward_output = f"\n**Reward:** {' '.join(reward_pieces)}" if reward_pieces else ""
+    if required_role:
+        reward_output += f"\n**Required Role:** {required_role.mention}"
+
+    embed = discord.Embed(
+        title="🌍 Guess The Mystery Country!",
+        description=(
+            f"**Created by:** {interaction.user.mention}{reward_output}\n\n"
+            "Guess by typing **country names** in chat to see how many **km** away you are!\n\n"
+            "**Guesses:**\n*No guesses yet!*"
+        ),
+        color=discord.Color.teal()
+    )
+    if hasattr(interaction.user, "display_avatar"):
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+
+    embed_msg = await target_channel.send(embed=embed)
+
+    active_codes[target_channel.id] = {
+        "code": chosen_key,
+        "accepted_answers": [chosen_key, official_name.lower()],
+        "target_coords": (lat, lon),
+        "target_display": official_name,
+        "ready": True,
+        "role_id": role.id if role else None,
+        "reward_text": reward_text,
+        "type": "country",
+        "start_time": time.time(),
+        "troll_target": None,
+        "creator_id": interaction.user.id,
+        "required_role_id": required_role.id if required_role else None,
+        "country_embed_id": embed_msg.id,
+        "country_guesses": [],
+    }
+
+    await interaction.followup.send(f"✅ Mystery country challenge started in {target_channel.mention}!", ephemeral=True)
+
+
 @bot.tree.command(name="wordle", description="Creates a custom Wordle game challenge.")
 @app_commands.describe(
     word="The secret word for players to guess",
@@ -691,7 +827,7 @@ async def announcement_slash(
         await interaction.followup.send(f"❌ I don't have permission to send messages in {target_channel.mention}.", ephemeral=True)
 
 
-@bot.tree.command(name="showanswer", description="Shows the answers for all active codes, riddles, and wordles (Bot Admin Only)")
+@bot.tree.command(name="showanswer", description="Shows the answers for all active codes, riddles, wordles, and countries (Bot Admin Only)")
 async def showanswer_slash(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
@@ -1077,6 +1213,7 @@ async def cmds_command(ctx):
             "`/createcode` - Creates a code challenge embed in chat.\n"
             "`/createriddle` - Creates a riddle challenge embed in chat.\n"
             "`/wordle` - Creates a custom interactive Wordle game in chat.\n"
+            "`/guessthemysterycountry` - Starts a mystery country distance game.\n"
             "`/leaderboard` - Displays fast solve times and top code solvers.\n"
             "`/setcoderole` - Sets roles allowed to manage codes for this server."
         ),
@@ -1104,7 +1241,7 @@ async def admincmds_command(ctx):
         name="⚙ Admin Slash Commands",
         value=(
             "`/antisnitcher` - Creates an anti-snitcher code challenge.\n"
-            "`/showanswer` - Shows answers for all active codes/riddles/wordles.\n"
+            "`/showanswer` - Shows answers for all active codes/riddles/wordles/countries.\n"
             "`/announcement` - Sends an announcement embed.\n"
             "`/mock` - Sends a custom message/image as the bot.\n"
             "`/givecodebypass` - Grants code bypass permissions.\n"
@@ -1229,7 +1366,8 @@ async def on_message(message: discord.Message):
         if code_data["ready"]:
             creator_id = code_data.get("creator_id")
             
-            if creator_id and message.author.id == creator_id:
+            # Allow BOT ADMINS to solve their own codes/riddles/games
+            if creator_id and message.author.id == creator_id and message.author.id not in ADMIN_USER_IDS:
                 return
 
             accepted_answers = code_data.get("accepted_answers", [code_data["code"].lower()])
@@ -1260,6 +1398,106 @@ async def on_message(message: discord.Message):
                 return
 
             target_code = accepted_answers[0]
+
+            # --- COUNTRY GUESSING GAME LOGIC ---
+            if challenge_type == "country":
+                if msg_clean in COUNTRY_DATA:
+                    guessed_lat, guessed_lon, guessed_name = COUNTRY_DATA[msg_clean]
+                    target_lat, target_lon = code_data["target_coords"]
+                    
+                    dist_km = calculate_haversine_distance(guessed_lat, guessed_lon, target_lat, target_lon)
+                    temp_status, emoji = get_temperature_feedback(dist_km)
+                    
+                    guess_entry = f"{emoji} **{guessed_name}** — **{dist_km:,} km** away ({temp_status}) [{message.author.mention}]"
+                    code_data["country_guesses"].append(guess_entry)
+
+                    embed_id = code_data.get("country_embed_id")
+                    if embed_id:
+                        try:
+                            embed_msg = await message.channel.fetch_message(embed_id)
+                            creator_user = bot.get_user(creator_id)
+                            creator_mention = creator_user.mention if creator_user else "Unknown"
+
+                            role_id = code_data.get("role_id")
+                            custom_reward_text = code_data.get("reward_text")
+                            reward_pieces = []
+                            if role_id and message.guild:
+                                r_obj = message.guild.get_role(role_id)
+                                if r_obj:
+                                    reward_pieces.append(r_obj.mention)
+                            if custom_reward_text:
+                                reward_pieces.append(custom_reward_text)
+                            
+                            reward_out = f"\n**Reward:** {' '.join(reward_pieces)}" if reward_pieces else ""
+                            req_r_id = code_data.get("required_role_id")
+                            if req_r_id and message.guild:
+                                r_req = message.guild.get_role(req_r_id)
+                                if r_req:
+                                    reward_out += f"\n**Required Role:** {r_req.mention}"
+
+                            guesses_formatted = "\n".join(code_data["country_guesses"][-10:])
+
+                            new_embed = discord.Embed(
+                                title="🌍 Guess The Mystery Country!",
+                                description=(
+                                    f"**Created by:** {creator_mention}{reward_out}\n\n"
+                                    f"{guesses_formatted}"
+                                ),
+                                color=discord.Color.teal(),
+                            )
+                            if creator_user and hasattr(creator_user, "display_avatar"):
+                                new_embed.set_thumbnail(url=creator_user.display_avatar.url)
+
+                            await embed_msg.edit(embed=new_embed)
+                        except Exception as e:
+                            print(f"Error updating Country embed: {e}")
+
+                    if dist_km == 0 or msg_clean in accepted_answers or has_bypass:
+                        start_time = code_data.get("start_time") or time.time()
+                        elapsed_seconds = round(time.time() - start_time, 2)
+                        role_id = code_data.get("role_id")
+                        custom_reward_text = code_data.get("reward_text")
+                        target_display = code_data.get("target_display", target_code.capitalize())
+
+                        del active_codes[channel_id]
+
+                        user_id_str = str(message.author.id)
+                        if user_id_str not in leaderboard_data:
+                            leaderboard_data[user_id_str] = {
+                                "username": message.author.display_name,
+                                "total_solved": 0,
+                                "fastest_time": 999999.0
+                            }
+                        leaderboard_data[user_id_str]["username"] = message.author.display_name
+                        leaderboard_data[user_id_str]["total_solved"] += 1
+                        if elapsed_seconds < leaderboard_data[user_id_str]["fastest_time"]:
+                            leaderboard_data[user_id_str]["fastest_time"] = elapsed_seconds
+                        save_leaderboard()
+
+                        reward_desc = None
+                        if custom_reward_text:
+                            reward_desc = custom_reward_text
+                        elif role_id and message.guild:
+                            role_obj = message.guild.get_role(role_id)
+                            if role_obj:
+                                reward_desc = role_obj.name
+
+                        if role_id and isinstance(message.author, discord.Member) and message.guild:
+                            role = message.guild.get_role(role_id)
+                            if role:
+                                try:
+                                    await message.author.add_roles(role)
+                                except discord.Forbidden:
+                                    pass
+
+                        if reward_desc:
+                            embed_desc = f"🎉 {message.author.mention} correctly guessed **{target_display}** for **{reward_desc}** in **{elapsed_seconds}** seconds!"
+                        else:
+                            embed_desc = f"🎉 {message.author.mention} correctly guessed **{target_display}** in **{elapsed_seconds}** seconds!"
+
+                        success_embed = discord.Embed(description=embed_desc, color=discord.Color.green())
+                        await message.channel.send(embed=success_embed)
+                return
 
             # --- WORDLE GAME LOGIC ---
             if challenge_type == "wordle":
