@@ -30,6 +30,7 @@ MANAGERS_FILE = "server_managers.json"
 BYPASS_FILE = "bypass_users.json"
 LEADERBOARD_FILE = "leaderboard.json"
 SERVERS_BLACKLIST_FILE = "blacklisted_servers.json"
+SETTINGS_FILE = "bot_settings.json"
 
 
 def load_json_file(filename: str, default_data):
@@ -55,10 +56,15 @@ server_manager_roles = {int(k): set(v) for k, v in load_json_file(MANAGERS_FILE,
 bypass_users = set(load_json_file(BYPASS_FILE, []))
 leaderboard_data = load_json_file(LEADERBOARD_FILE, {})
 blacklisted_servers = set(load_json_file(SERVERS_BLACKLIST_FILE, []))
+bot_settings = load_json_file(SETTINGS_FILE, {"admin_log_channel_id": None})
 
 
 def save_leaderboard():
     save_json_file(LEADERBOARD_FILE, leaderboard_data)
+
+
+def save_settings():
+    save_json_file(SETTINGS_FILE, bot_settings)
 
 
 def normalize_text(text: str) -> str:
@@ -103,8 +109,35 @@ def calculate_bearing_direction(lat1: float, lon1: float, lat2: float, lon2: flo
         return "⬆️ N"
 
 
+async def log_admin_action(executor: discord.User | discord.Member, action_title: str, details: str):
+    log_channel_id = bot_settings.get("admin_log_channel_id")
+    if not log_channel_id:
+        return
+
+    channel = bot.get_channel(log_channel_id)
+    if not channel:
+        try:
+            channel = await bot.fetch_channel(log_channel_id)
+        except Exception:
+            return
+
+    embed = discord.Embed(
+        title=f"🛡️ Admin Command Log: {action_title}",
+        description=details,
+        color=discord.Color.dark_red(),
+        timestamp=discord.utils.utcnow()
+    )
+    embed.add_field(name="Executed By", value=f"{executor.mention} (`{executor.id}`)", inline=False)
+    if hasattr(executor, "display_avatar"):
+        embed.set_thumbnail(url=executor.display_avatar.url)
+
+    try:
+        await channel.send(embed=embed)
+    except Exception as e:
+        print(f"Failed to send admin log: {e}")
+
+
 # --- COMPREHENSIVE WORLD COUNTRY DATASET ---
-# Format: "lowercase name": (latitude, longitude, "Official Display Name", "2-Letter Code")
 COUNTRY_DATA = {
     "afghanistan": (33.93911, 67.709953, "Afghanistan", "AF"),
     "albania": (41.1533, 20.1683, "Albania", "AL"),
@@ -700,6 +733,27 @@ async def process_wordle_creation(
     }
 
 
+# --- ADMIN LOGGING SETUP SLASH COMMAND ---
+@bot.tree.command(name="setadminlogchannel", description="Sets the channel where admin actions will be logged (Bot Admin Only)")
+@app_commands.describe(channel="The channel where admin command logs should be sent")
+async def setadminlogchannel_slash(interaction: discord.Interaction, channel: discord.TextChannel):
+    await interaction.response.defer(ephemeral=True)
+
+    if interaction.user.id not in ADMIN_USER_IDS:
+        await interaction.followup.send("❌ You do not have permission to use this command!", ephemeral=True)
+        return
+
+    bot_settings["admin_log_channel_id"] = channel.id
+    save_settings()
+
+    await interaction.followup.send(f"✅ Admin action log channel successfully set to {channel.mention}!", ephemeral=True)
+    await log_admin_action(
+        interaction.user,
+        "Set Admin Log Channel",
+        f"Admin log channel was updated to {channel.mention} (`ID: {channel.id}`)."
+    )
+
+
 # --- SLASH COMMANDS ---
 @bot.tree.command(name="guessthemysterycountry", description="Starts a mystery country guessing game!")
 @app_commands.describe(
@@ -897,6 +951,12 @@ async def mock_slash(
             await target_channel.send(content=message)
 
         await interaction.followup.send(f"✅ Mock message successfully sent to {target_channel.mention}!", ephemeral=True)
+        
+        await log_admin_action(
+            interaction.user,
+            "Used `/mock` Command",
+            f"**Target Channel:** {target_channel.mention}\n**Message:** {message or '*None*'}\n**Attachment:** {media.filename if media else '*None*'}"
+        )
     except discord.Forbidden:
         await interaction.followup.send(f"❌ I lack permissions to send messages in {target_channel.mention}.", ephemeral=True)
 
@@ -1012,6 +1072,12 @@ async def announcement_slash(
         else:
             await target_channel.send(embed=embed)
         await interaction.followup.send(f"✅ Announcement sent to {target_channel.mention}!", ephemeral=True)
+
+        await log_admin_action(
+            interaction.user,
+            "Used `/announcement` Command",
+            f"**Target Channel:** {target_channel.mention}\n**Title:** {title}\n**Description:** {description or '*None*'}"
+        )
     except discord.Forbidden:
         await interaction.followup.send(f"❌ I don't have permission to send messages in {target_channel.mention}.", ephemeral=True)
 
@@ -1058,6 +1124,12 @@ async def showanswer_slash(interaction: discord.Interaction):
         embed.set_footer(text=f"Requested by {interaction.user.name}", icon_url=interaction.user.display_avatar.url)
 
     await interaction.followup.send(embed=embed, ephemeral=True)
+
+    await log_admin_action(
+        interaction.user,
+        "Used `/showanswer` Command",
+        f"Viewed answers for **{len(active_codes)}** active challenge(s)."
+    )
 
 
 @bot.tree.command(name="antisnitcher", description="Creates a code challenge with a special anti-snitch trap (Bot Admin Only)")
@@ -1106,6 +1178,12 @@ async def antisnitcher_slash(
     troll_target_id = 1445161465983008780
 
     await interaction.followup.send(f"✅ Anti-snitcher code started in {target_channel.mention}!", ephemeral=True)
+
+    await log_admin_action(
+        interaction.user,
+        "Used `/antisnitcher` Command",
+        f"**Channel:** {target_channel.mention}\n**Code:** `{clean_code}`"
+    )
 
     sections = split_phrase(clean_code)
     await process_code_creation(
@@ -1178,6 +1256,12 @@ async def givecodebypass(interaction: discord.Interaction, user: discord.User | 
 
     await interaction.followup.send(f"🔓 Granted code bypass permissions to {user.mention}!", ephemeral=True)
 
+    await log_admin_action(
+        interaction.user,
+        "Used `/givecodebypass` Command",
+        f"Granted bypass to {user.mention} (`ID: {user.id}`)."
+    )
+
 
 @bot.tree.command(name="deletecodebypassperms", description="Removes code bypass permissions from a user or all users (Bot Admin Only)")
 async def deletecodebypassperms(interaction: discord.Interaction, user: discord.User | discord.Member | None = None):
@@ -1199,6 +1283,12 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
         bypass_users.remove(user.id)
         save_json_file(BYPASS_FILE, list(bypass_users))
         await interaction.followup.send(f"🛑 Removed code bypass permissions from {user.mention}!", ephemeral=True)
+        
+        await log_admin_action(
+            interaction.user,
+            "Used `/deletecodebypassperms` Command",
+            f"Removed bypass from {user.mention} (`ID: {user.id}`)."
+        )
     else:
         if not bypass_users:
             await interaction.followup.send("⚠️ No users currently have code bypass permissions.", ephemeral=True)
@@ -1208,6 +1298,12 @@ async def deletecodebypassperms(interaction: discord.Interaction, user: discord.
         bypass_users.clear()
         save_json_file(BYPASS_FILE, list(bypass_users))
         await interaction.followup.send(f"🛑 Removed code bypass permissions from all {count} user(s)!", ephemeral=True)
+
+        await log_admin_action(
+            interaction.user,
+            "Used `/deletecodebypassperms` Command",
+            f"Cleared bypass permissions from **ALL** users ({count} users total)."
+        )
 
 
 @bot.tree.command(name="createcode", description="Creates a standard or reward code embed.")
@@ -1429,6 +1525,7 @@ async def admincmds_command(ctx):
     embed.add_field(
         name="⚙ Admin Slash Commands",
         value=(
+            "`/setadminlogchannel` - Sets the target channel for logging admin actions.\n"
             "`/antisnitcher` - Creates an anti-snitcher code challenge.\n"
             "`/showanswer` - Shows answers for all active codes/riddles/wordles/countries.\n"
             "`/announcement` - Sends an announcement embed.\n"
@@ -1469,6 +1566,12 @@ async def blacklist(ctx, user: discord.User | discord.Member):
     save_json_file(BLACKLIST_FILE, list(blacklisted_users))
     await ctx.send(f"🚫 {user.mention} has been blacklisted!")
 
+    await log_admin_action(
+        ctx.author,
+        "Used `!blacklist` Command",
+        f"Blacklisted user {user.mention} (`ID: {user.id}`)."
+    )
+
 
 @bot.command()
 @is_not_blacklisted()
@@ -1480,6 +1583,12 @@ async def unblacklist(ctx, user: discord.User | discord.Member):
     blacklisted_users.remove(user.id)
     save_json_file(BLACKLIST_FILE, list(blacklisted_users))
     await ctx.send(f"✅ {user.mention} has been removed from the blacklist!")
+
+    await log_admin_action(
+        ctx.author,
+        "Used `!unblacklist` Command",
+        f"Unblacklisted user {user.mention} (`ID: {user.id}`)."
+    )
 
 
 @bot.command(name="blacklistlist")
@@ -1516,6 +1625,12 @@ async def blacklistserver_command(ctx, guild_id: int):
     save_json_file(SERVERS_BLACKLIST_FILE, list(blacklisted_servers))
     await ctx.send(f"🚫 Server with ID `{guild_id}` has been blacklisted from using the bot!")
 
+    await log_admin_action(
+        ctx.author,
+        "Used `!blacklistserver` Command",
+        f"Blacklisted server ID `{guild_id}`."
+    )
+
 
 @bot.command(name="unblacklistserver")
 @is_admin_or_owner()
@@ -1527,6 +1642,12 @@ async def unblacklistserver_command(ctx, guild_id: int):
     blacklisted_servers.remove(guild_id)
     save_json_file(SERVERS_BLACKLIST_FILE, list(blacklisted_servers))
     await ctx.send(f"✅ Server with ID `{guild_id}` has been removed from the server blacklist!")
+
+    await log_admin_action(
+        ctx.author,
+        "Used `!unblacklistserver` Command",
+        f"Unblacklisted server ID `{guild_id}`."
+    )
 
 
 # --- MESSAGE LISTENER FOR CODE SOLVING & LEADERBOARD UPDATES ---
