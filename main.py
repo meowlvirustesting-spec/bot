@@ -137,8 +137,9 @@ async def log_admin_action(executor: discord.User | discord.Member, action_title
         print(f"Failed to send admin log: {e}")
 
 
-# --- COMPREHENSIVE WORLD COUNTRY DATASET ---
+# --- COMPREHENSIVE WORLD COUNTRY & TERRITORY DATASET ---
 COUNTRY_DATA = {
+    # Countries
     "afghanistan": (33.93911, 67.709953, "Afghanistan", "AF"),
     "albania": (41.1533, 20.1683, "Albania", "AL"),
     "algeria": (28.0339, 1.6596, "Algeria", "DZ"),
@@ -335,7 +336,51 @@ COUNTRY_DATA = {
     "vietnam": (14.0583, 108.2772, "Vietnam", "VN"),
     "yemen": (15.5527, 48.5164, "Yemen", "YE"),
     "zambia": (-13.1339, 27.8493, "Zambia", "ZM"),
-    "zimbabwe": (-19.0154, 29.1549, "Zimbabwe", "ZW")
+    "zimbabwe": (-19.0154, 29.1549, "Zimbabwe", "ZW"),
+
+    # Territories & Dependencies
+    "american samoa": (-14.271, -170.1322, "American Samoa", "AS"),
+    "anguilla": (18.2206, -63.0686, "Anguilla", "AI"),
+    "aruba": (12.5211, -69.9683, "Aruba", "AW"),
+    "bermuda": (32.3078, -64.7505, "Bermuda", "BM"),
+    "bonaire": (12.2019, -68.2624, "Bonaire", "BQ"),
+    "british virgin islands": (18.4207, -64.6399, "British Virgin Islands", "VG"),
+    "cayman islands": (19.3133, -81.2546, "Cayman Islands", "KY"),
+    "cook islands": (-21.2367, -159.7777, "Cook Islands", "CK"),
+    "curacao": (12.1696, -68.99, "Curaçao", "CW"),
+    "falkland islands": (-51.7963, -59.5236, "Falkland Islands", "FK"),
+    "faroe islands": (61.8926, -6.9118, "Faroe Islands", "FO"),
+    "french guiana": (3.9339, -53.1258, "French Guiana", "GF"),
+    "french polynesia": (-17.6797, -149.4068, "French Polynesia", "PF"),
+    "gibraltar": (36.1408, -5.3536, "Gibraltar", "GI"),
+    "greenland": (71.7069, -42.6043, "Greenland", "GL"),
+    "guadeloupe": (16.265, -61.551, "Guadeloupe", "GP"),
+    "guam": (13.4443, 144.7937, "Guam", "GU"),
+    "guernsey": (49.4657, -2.5853, "Guernsey", "GG"),
+    "hong kong": (22.3193, 114.1694, "Hong Kong", "HK"),
+    "isle of man": (54.2361, -4.5481, "Isle of Man", "IM"),
+    "jersey": (49.2144, -2.1312, "Jersey", "JE"),
+    "macau": (22.1987, 113.5439, "Macau", "MO"),
+    "martinique": (14.6415, -61.0242, "Martinique", "MQ"),
+    "mayotte": (-12.8275, 45.1662, "Mayotte", "YT"),
+    "montserrat": (16.7425, -62.1874, "Montserrat", "MS"),
+    "new caledonia": (-20.9043, 165.618, "New Caledonia", "NC"),
+    "niue": (-19.0544, -169.8672, "Niue", "NU"),
+    "norfolk island": (-29.0408, 167.9547, "Norfolk Island", "NF"),
+    "northern mariana islands": (15.0979, 145.6739, "Northern Mariana Islands", "MP"),
+    "palestine": (31.9522, 35.2332, "Palestine", "PS"),
+    "puerto rico": (18.2208, -66.5901, "Puerto Rico", "PR"),
+    "reunion": (-21.1151, 55.5364, "Réunion", "RE"),
+    "saint barthelemy": (17.9, -62.8333, "Saint Barthélemy", "BL"),
+    "saint helena": (-15.965, -5.7089, "Saint Helena", "SH"),
+    "saint martin": (18.0708, -63.0501, "Saint Martin", "MF"),
+    "saint pierre and miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM"),
+    "sint maarten": (18.0425, -63.0548, "Sint Maarten", "SX"),
+    "tokelau": (-9.2002, -171.8484, "Tokelau", "TK"),
+    "turks and caicos islands": (21.694, -71.7979, "Turks and Caicos Islands", "TC"),
+    "us virgin islands": (18.3358, -64.8963, "U.S. Virgin Islands", "VI"),
+    "wallis and futuna": (-13.7651, -177.1561, "Wallis and Futuna", "WF"),
+    "western sahara": (24.2155, -12.8858, "Western Sahara", "EH")
 }
 
 
@@ -757,7 +802,7 @@ async def setadminlogchannel_slash(interaction: discord.Interaction, channel: di
 # --- SLASH COMMANDS ---
 @bot.tree.command(name="guessthemysterycountry", description="Starts a mystery country guessing game!")
 @app_commands.describe(
-    country="Optional: Pick a specific mystery country to guess (Leave empty for random)",
+    country="Optional: Pick a specific mystery country/territory to guess (Leave empty for random)",
     role="Optional role reward",
     reward_text="Optional custom text description for the reward",
     required_role="Optional role required to guess in this game",
@@ -794,7 +839,7 @@ async def guessthemysterycountry_slash(
         clean_c = normalize_text(country)
         if clean_c not in COUNTRY_DATA:
             await interaction.followup.send(
-                f"❌ Country **'{country}'** was not found in the dataset!",
+                f"❌ Country/Territory **'{country}'** was not found in the dataset!",
                 ephemeral=True
             )
             return
@@ -815,7 +860,7 @@ async def guessthemysterycountry_slash(
         reward_output += f"\n**Required Role:** {required_role.mention}"
 
     embed = discord.Embed(
-        title="🌍 Guess The Mystery Country!",
+        title="🌍 Guess The Mystery Country / Territory!",
         description=(
             f"**Created by:** {interaction.user.mention}{reward_output}\n\n"
             "*No guesses yet!*"
@@ -844,7 +889,7 @@ async def guessthemysterycountry_slash(
         "country_guesses": [],
     }
 
-    await interaction.followup.send(f"✅ Mystery country challenge started in {target_channel.mention}!", ephemeral=True)
+    await interaction.followup.send(f"✅ Mystery country/territory challenge started in {target_channel.mention}!", ephemeral=True)
 
 
 @bot.tree.command(name="wordle", description="Creates a custom Wordle game challenge.")
@@ -951,7 +996,7 @@ async def mock_slash(
             await target_channel.send(content=message)
 
         await interaction.followup.send(f"✅ Mock message successfully sent to {target_channel.mention}!", ephemeral=True)
-        
+
         await log_admin_action(
             interaction.user,
             "Used `/mock` Command",
@@ -1498,7 +1543,7 @@ async def cmds_command(ctx):
             "`/createcode` - Creates a code challenge embed in chat.\n"
             "`/createriddle` - Creates a riddle challenge embed in chat.\n"
             "`/wordle` - Creates a custom interactive Wordle game in chat.\n"
-            "`/guessthemysterycountry` - Starts a mystery country distance game.\n"
+            "`/guessthemysterycountry` - Starts a mystery country/territory distance game.\n"
             "`/leaderboard` - Displays fast solve times and top code solvers.\n"
             "`/setcoderole` - Sets roles allowed to manage codes for this server."
         ),
@@ -1762,7 +1807,7 @@ async def on_message(message: discord.Message):
                             guesses_formatted = "\n".join(code_data["country_guesses"][-10:])
 
                             new_embed = discord.Embed(
-                                title="🌍 Guess The Mystery Country!",
+                                title="🌍 Guess The Mystery Country / Territory!",
                                 description=(
                                     f"**Created by:** {creator_mention}{reward_out}\n\n"
                                     f"{guesses_formatted}"
