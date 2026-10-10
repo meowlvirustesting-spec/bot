@@ -264,18 +264,18 @@ async def process_code_creation(
         displayed_text = ""
         has_spaces = " " in clean_code
 
-        for i, section in enumerate(sections):
-            await target_channel.trigger_typing()
-            await asyncio.sleep(speed)
-            if has_spaces:
-                displayed_text += section + " "
-            else:
-                displayed_text += section
+        async with target_channel.typing():
+            for i, section in enumerate(sections):
+                await asyncio.sleep(speed)
+                if has_spaces:
+                    displayed_text += section + " "
+                else:
+                    displayed_text += section
 
-            if i == 0:
-                await target_channel.send(f"**USE CODE:** {displayed_text.strip()}")
-            else:
-                await target_channel.send(displayed_text.strip())
+                if i == 0:
+                    await target_channel.send(f"**USE CODE:** {displayed_text.strip()}")
+                else:
+                    await target_channel.send(displayed_text.strip())
 
         active_codes[target_channel.id]["ready"] = True
         active_codes[target_channel.id]["start_time"] = time.time()
@@ -313,7 +313,6 @@ async def process_code_creation(
     has_spaces = " " in clean_code
 
     for section in sections:
-        await target_channel.trigger_typing()
         await asyncio.sleep(speed)
         if has_spaces:
             displayed_text += section + " "
