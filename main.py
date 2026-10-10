@@ -44,7 +44,7 @@ def load_json_file(filename: str, default_data):
 def save_json_file(filename: str, data):
     try:
         with open(filename, "w") as f:
-            json.dump(filename, f, indent=4)
+            json.dump(data, f, indent=4)
     except Exception as e:
         print(f"Error saving {filename}: {e}")
 
@@ -208,20 +208,17 @@ def calculate_wordle_feedback(guess: str, secret: str) -> str:
     secret_chars = list(secret.lower())
     feedback = ["⬛"] * len(guess_chars)
     
-    # Mark green exact matches first
     for i in range(len(guess_chars)):
         if guess_chars[i] == secret_chars[i]:
             feedback[i] = "🟩"
             secret_chars[i] = None
 
-    # Mark yellow matches next
     for i in range(len(guess_chars)):
         if feedback[i] == "⬛" and guess_chars[i] in secret_chars and guess_chars[i] is not None:
             if guess_chars[i] in secret_chars:
                 feedback[i] = "🟨"
                 secret_chars[secret_chars.index(guess_chars[i])] = None
 
-    # Build character block representation
     blocks = "".join(feedback)
     word_str = " ".join([f"`{c.upper()}`" for c in guess_chars])
     return f"{blocks}  {word_str}"
@@ -445,10 +442,8 @@ async def process_wordle_creation(
     embed = discord.Embed(
         title="🟩 Wordle Challenge!",
         description=(
-            f"**Created by:** {creator.mention}\n"
-            f"**Word Length:** {len(clean_word)} letters\n"
-            f"Guess by typing **{len(clean_word)}-letter words** in chat!{reward_output}\n\n"
-            "**Guesses:**\n*No guesses yet!*"
+            f"**Created by:** {creator.mention}{reward_output}\n\n"
+            "*No guesses yet!*"
         ),
         color=discord.Color.green(),
     )
@@ -1235,7 +1230,6 @@ async def on_message(message: discord.Message):
         if code_data["ready"]:
             creator_id = code_data.get("creator_id")
             
-            # Prevent creator from playing their own game
             if creator_id and message.author.id == creator_id:
                 return
 
@@ -1255,7 +1249,6 @@ async def on_message(message: discord.Message):
             has_standalone_bypass = message.author.id in bypass_users
             has_bypass = has_role_bypass or has_standalone_bypass
 
-            # Check required role requirement
             required_role_id = code_data.get("required_role_id")
             has_required_role = True
             if required_role_id and not has_bypass and message.guild:
@@ -1271,12 +1264,10 @@ async def on_message(message: discord.Message):
 
             # --- WORDLE GAME LOGIC ---
             if challenge_type == "wordle":
-                # Only evaluate if guess is exact same length
                 if len(msg_clean) == len(target_code) and msg_clean.isalpha():
                     feedback_line = calculate_wordle_feedback(msg_clean, target_code)
                     code_data["wordle_guesses"].append(f"{feedback_line} ({message.author.mention})")
                     
-                    # Update embed in channel
                     embed_id = code_data.get("wordle_embed_id")
                     if embed_id:
                         try:
@@ -1306,10 +1297,8 @@ async def on_message(message: discord.Message):
                             new_embed = discord.Embed(
                                 title="🟩 Wordle Challenge!",
                                 description=(
-                                    f"**Created by:** {creator_mention}\n"
-                                    f"**Word Length:** {len(target_code)} letters\n"
-                                    f"Guess by typing **{len(target_code)}-letter words** in chat!{reward_out}\n\n"
-                                    f"**Guesses:**\n{guesses_formatted}"
+                                    f"**Created by:** {creator_mention}{reward_out}\n\n"
+                                    f"{guesses_formatted}"
                                 ),
                                 color=discord.Color.green(),
                             )
@@ -1320,7 +1309,6 @@ async def on_message(message: discord.Message):
                         except Exception as e:
                             print(f"Error updating Wordle embed: {e}")
 
-                    # Check winning condition
                     if msg_clean == target_code or has_bypass:
                         start_time = code_data.get("start_time") or time.time()
                         elapsed_seconds = round(time.time() - start_time, 2)
