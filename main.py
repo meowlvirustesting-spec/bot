@@ -1589,6 +1589,14 @@ async def on_message(message: discord.Message):
 
             # --- COUNTRY GUESSING GAME LOGIC ---
             if challenge_type == "country":
+                if msg_clean == "niger":
+                    try:
+                        await message.delete()
+                    except discord.HTTPException:
+                        pass
+                    await message.channel.send("please dont guess that one 🥀")
+                    return
+
                 if msg_clean in COUNTRY_DATA:
                     guessed_lat, guessed_lon, guessed_name, guessed_cca2 = COUNTRY_DATA[msg_clean]
                     target_lat, target_lon = code_data["target_coords"]
