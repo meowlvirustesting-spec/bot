@@ -61,57 +61,67 @@ def save_leaderboard():
     save_json_file(LEADERBOARD_FILE, leaderboard_data)
 
 
-# --- COUNTRY COORDINATE DATASET ---
-COUNTRY_DATA = {
+# --- DYNAMIC COUNTRY DATASET FETCHING ---
+DEFAULT_COUNTRY_DATA = {
     "united states": (37.0902, -95.7129, "United States"),
     "usa": (37.0902, -95.7129, "United States"),
     "canada": (56.1304, -106.3468, "Canada"),
     "mexico": (23.6345, -102.5528, "Mexico"),
     "brazil": (-14.2350, -51.9253, "Brazil"),
-    "argentina": (-38.4161, -63.6167, "Argentina"),
     "united kingdom": (55.3781, -3.4360, "United Kingdom"),
     "uk": (55.3781, -3.4360, "United Kingdom"),
     "france": (46.2276, 2.2137, "France"),
     "germany": (51.1657, 10.4515, "Germany"),
-    "italy": (41.8719, 12.5674, "Italy"),
-    "spain": (40.4637, -3.7492, "Spain"),
-    "portugal": (39.3999, -8.2245, "Portugal"),
     "japan": (36.2048, 138.2529, "Japan"),
     "china": (35.8617, 104.1954, "China"),
-    "india": (20.5937, 78.9629, "India"),
     "australia": (-25.2744, 133.7751, "Australia"),
     "russia": (61.5240, 105.3188, "Russia"),
-    "egypt": (26.8206, 30.8025, "Egypt"),
-    "south africa": (-30.5595, 22.9375, "South Africa"),
-    "nigeria": (9.0820, 8.6753, "Nigeria"),
-    "kenya": (-1.286389, 36.817223, "Kenya"),
-    "south korea": (35.9078, 127.7669, "South Korea"),
-    "indonesia": (-0.7893, 113.9213, "Indonesia"),
-    "saudi arabia": (23.8859, 45.0792, "Saudi Arabia"),
-    "turkey": (38.9637, 35.2433, "Turkey"),
-    "norway": (60.4720, 8.4689, "Norway"),
-    "sweden": (60.1282, 18.6435, "Sweden"),
-    "finland": (61.9241, 25.7482, "Finland"),
-    "poland": (51.9194, 19.1451, "Poland"),
-    "ukraine": (48.3794, 31.1656, "Ukraine"),
-    "greece": (39.0742, 21.8243, "Greece"),
-    "thailand": (15.8700, 100.9925, "Thailand"),
-    "vietnam": (14.0583, 108.2772, "Vietnam"),
-    "philippines": (12.8797, 121.7740, "Philippines"),
-    "new zealand": (-40.9006, 174.8860, "New Zealand"),
-    "chile": (-35.6751, -71.5430, "Chile"),
-    "colombia": (4.5709, -74.2973, "Colombia"),
-    "peru": (-9.1899, -75.0152, "Peru"),
-    "morocco": (31.7917, -7.0926, "Morocco"),
-    "iceland": (64.9631, -19.0208, "Iceland"),
-    "ireland": (53.1424, -7.6921, "Ireland"),
-    "netherlands": (52.1326, 5.2913, "Netherlands"),
-    "belgium": (50.5039, 4.4699, "Belgium"),
-    "switzerland": (46.8182, 8.2275, "Switzerland"),
-    "austria": (47.5162, 14.5501, "Austria"),
-    "algeria": (28.0339, 1.6596, "Algeria"),
-    "pakistan": (30.3753, 69.3451, "Pakistan"),
 }
+
+
+def load_all_world_countries():
+    """Fetches all ~250 countries and coordinates live from REST Countries API."""
+    country_dict = {}
+    url = "https://restcountries.com/v3.1/all?fields=name,latlng,cca2,cca3"
+    try:
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            for c in data:
+                latlng = c.get("latlng")
+                name_obj = c.get("name", {})
+                official_name = name_obj.get("common") or name_obj.get("official")
+                
+                if latlng and len(latlng) == 2 and official_name:
+                    lat, lon = float(latlng[0]), float(latlng[1])
+                    
+                    # Store common name
+                    key = official_name.lower()
+                    country_dict[key] = (lat, lon, official_name)
+                    
+                    # Store official full name if different
+                    off_key = name_obj.get("official", "").lower()
+                    if off_key:
+                        country_dict[off_key] = (lat, lon, official_name)
+                        
+                    # Store 2-letter & 3-letter codes (e.g. US, USA, GB, UK)
+                    cca2 = c.get("cca2", "").lower()
+                    cca3 = c.get("cca3", "").lower()
+                    if cca2:
+                        country_dict[cca2] = (lat, lon, official_name)
+                    if cca3:
+                        country_dict[cca3] = (lat, lon, official_name)
+                        
+            print(f"✅ Successfully loaded {len(country_dict)} country aliases/names!")
+            return country_dict
+    except Exception as e:
+        print(f"⚠️ Could not fetch live country list ({e}). Using default country list.")
+        
+    return DEFAULT_COUNTRY_DATA
+
+
+# Initialize country dataset
+COUNTRY_DATA = load_all_world_countries()
 
 
 def calculate_haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> int:
@@ -544,13 +554,11 @@ async def guessthemysterycountry_slash(
         await interaction.followup.send("❌ Invalid channel destination!", ephemeral=True)
         return
 
-    # Select user-specified country or random
     if country:
         clean_c = country.strip().lower()
         if clean_c not in COUNTRY_DATA:
-            available_list = ", ".join([f"`{c.capitalize()}`" for c in sorted(list(set(k for k in COUNTRY_DATA.keys() if len(k) > 3)))])
             await interaction.followup.send(
-                f"❌ Country **'{country}'** is not in the dataset!\n\n**Supported Countries:** {available_list[:1500]}...",
+                f"❌ Country **'{country}'** was not found in the global dataset!",
                 ephemeral=True
             )
             return
@@ -574,8 +582,7 @@ async def guessthemysterycountry_slash(
         title="🌍 Guess The Mystery Country!",
         description=(
             f"**Created by:** {interaction.user.mention}{reward_output}\n\n"
-            "Guess by typing **country names** in chat to see how many **km** away you are!\n\n"
-            "**Guesses:**\n*No guesses yet!*"
+            "*No guesses yet!*"
         ),
         color=discord.Color.teal()
     )
