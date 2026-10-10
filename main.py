@@ -44,7 +44,7 @@ def load_json_file(filename: str, default_data):
 def save_json_file(filename: str, data):
     try:
         with open(filename, "w") as f:
-            json.dump(data, f, indent=4)
+            json.dump(filename, f, indent=4)
     except Exception as e:
         print(f"Error saving {filename}: {e}")
 
@@ -201,6 +201,30 @@ def split_phrase(text: str) -> list[str]:
     
     chunk_size = max(1, len(text) // 3)
     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+
+def calculate_wordle_feedback(guess: str, secret: str) -> str:
+    guess_chars = list(guess.lower())
+    secret_chars = list(secret.lower())
+    feedback = ["⬛"] * len(guess_chars)
+    
+    # Mark green exact matches first
+    for i in range(len(guess_chars)):
+        if guess_chars[i] == secret_chars[i]:
+            feedback[i] = "🟩"
+            secret_chars[i] = None
+
+    # Mark yellow matches next
+    for i in range(len(guess_chars)):
+        if feedback[i] == "⬛" and guess_chars[i] in secret_chars and guess_chars[i] is not None:
+            if guess_chars[i] in secret_chars:
+                feedback[i] = "🟨"
+                secret_chars[secret_chars.index(guess_chars[i])] = None
+
+    # Build character block representation
+    blocks = "".join(feedback)
+    word_str = " ".join([f"`{c.upper()}`" for c in guess_chars])
+    return f"{blocks}  {word_str}"
 
 
 async def process_code_creation(
@@ -394,7 +418,118 @@ async def process_riddle_creation(
     await target_channel.send(embed=embed)
 
 
+async def process_wordle_creation(
+    target_channel: discord.TextChannel | discord.Thread | discord.DMChannel,
+    word: str,
+    creator: discord.User | discord.Member,
+    reward_role: discord.Role | None = None,
+    reward_text: str | None = None,
+    required_role: discord.Role | None = None,
+):
+    if target_channel.guild and target_channel.guild.id in blacklisted_servers:
+        return
+
+    clean_word = word.strip().lower()
+    start_timestamp = time.time()
+
+    reward_pieces = []
+    if reward_role:
+        reward_pieces.append(reward_role.mention)
+    if reward_text:
+        reward_pieces.append(reward_text)
+
+    reward_output = f"\n**Reward:** {' '.join(reward_pieces)}" if reward_pieces else ""
+    if required_role:
+        reward_output += f"\n**Required Role:** {required_role.mention}"
+
+    embed = discord.Embed(
+        title="🟩 Wordle Challenge!",
+        description=(
+            f"**Created by:** {creator.mention}\n"
+            f"**Word Length:** {len(clean_word)} letters\n"
+            f"Guess by typing **{len(clean_word)}-letter words** in chat!{reward_output}\n\n"
+            "**Guesses:**\n*No guesses yet!*"
+        ),
+        color=discord.Color.green(),
+    )
+    if hasattr(creator, "display_avatar"):
+        embed.set_thumbnail(url=creator.display_avatar.url)
+
+    embed_msg = await target_channel.send(embed=embed)
+
+    active_codes[target_channel.id] = {
+        "code": clean_word,
+        "accepted_answers": [clean_word],
+        "ready": True,
+        "role_id": reward_role.id if reward_role else None,
+        "reward_text": reward_text,
+        "type": "wordle",
+        "start_time": start_timestamp,
+        "troll_target": None,
+        "creator_id": creator.id,
+        "required_role_id": required_role.id if required_role else None,
+        "wordle_embed_id": embed_msg.id,
+        "wordle_guesses": [],
+    }
+
+
 # --- SLASH COMMANDS ---
+@bot.tree.command(name="wordle", description="Creates a custom Wordle game challenge.")
+@app_commands.describe(
+    word="The secret word for players to guess",
+    role="Optional role reward",
+    reward_text="Optional custom text description for the reward",
+    required_role="Optional role required to guess in this Wordle",
+    channel="Target channel"
+)
+async def wordle_slash(
+    interaction: discord.Interaction,
+    word: str,
+    role: discord.Role | None = None,
+    reward_text: str | None = None,
+    required_role: discord.Role | None = None,
+    channel: discord.TextChannel | None = None
+):
+    await interaction.response.defer(ephemeral=True)
+
+    if interaction.guild and interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
+
+    if interaction.user.id in blacklisted_users:
+        await interaction.followup.send("🚫 You are blacklisted from using bot commands!", ephemeral=True)
+        return
+
+    if not user_can_manage_codes(interaction.user, interaction.guild):
+        await interaction.followup.send("❌ You do not have permission to create Wordles!", ephemeral=True)
+        return
+
+    clean_word = word.strip().lower()
+    if not clean_word.isalpha():
+        await interaction.followup.send("❌ Secret word can only contain alphabetic letters!", ephemeral=True)
+        return
+
+    if len(clean_word) < 3 or len(clean_word) > 10:
+        await interaction.followup.send("❌ Secret word length must be between 3 and 10 letters!", ephemeral=True)
+        return
+
+    target_channel = channel or interaction.channel
+    if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+        await interaction.followup.send("❌ Invalid channel destination!", ephemeral=True)
+        return
+
+    await interaction.followup.send(f"✅ Wordle challenge created in {target_channel.mention}!", ephemeral=True)
+
+    await process_wordle_creation(
+        target_channel,
+        clean_word,
+        interaction.user,
+        reward_role=role,
+        reward_text=reward_text,
+        required_role=required_role
+    )
+
+
 @bot.tree.command(name="mock", description="Sends a message as the bot with optional text and images (Bot Admin Only)")
 @app_commands.describe(
     message="The text content for the bot to send",
@@ -562,7 +697,7 @@ async def announcement_slash(
         await interaction.followup.send(f"❌ I don't have permission to send messages in {target_channel.mention}.", ephemeral=True)
 
 
-@bot.tree.command(name="showanswer", description="Shows the answers for all active codes and riddles (Bot Admin Only)")
+@bot.tree.command(name="showanswer", description="Shows the answers for all active codes, riddles, and wordles (Bot Admin Only)")
 async def showanswer_slash(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
 
@@ -946,7 +1081,8 @@ async def cmds_command(ctx):
         name="🎮 Code & Game Commands",
         value=(
             "`/createcode` - Creates a code challenge embed in chat.\n"
-            "`/createriddle` - Creates a riddle challenge embed in chat (supports 2 answers).\n"
+            "`/createriddle` - Creates a riddle challenge embed in chat.\n"
+            "`/wordle` - Creates a custom interactive Wordle game in chat.\n"
             "`/leaderboard` - Displays fast solve times and top code solvers.\n"
             "`/setcoderole` - Sets roles allowed to manage codes for this server."
         ),
@@ -974,7 +1110,7 @@ async def admincmds_command(ctx):
         name="⚙ Admin Slash Commands",
         value=(
             "`/antisnitcher` - Creates an anti-snitcher code challenge.\n"
-            "`/showanswer` - Shows answers for all active codes/riddles.\n"
+            "`/showanswer` - Shows answers for all active codes/riddles/wordles.\n"
             "`/announcement` - Sends an announcement embed.\n"
             "`/mock` - Sends a custom message/image as the bot.\n"
             "`/givecodebypass` - Grants code bypass permissions.\n"
@@ -1099,7 +1235,7 @@ async def on_message(message: discord.Message):
         if code_data["ready"]:
             creator_id = code_data.get("creator_id")
             
-            # Prevent the creator from answering their own code/riddle
+            # Prevent creator from playing their own game
             if creator_id and message.author.id == creator_id:
                 return
 
@@ -1119,7 +1255,7 @@ async def on_message(message: discord.Message):
             has_standalone_bypass = message.author.id in bypass_users
             has_bypass = has_role_bypass or has_standalone_bypass
 
-            # Check required role requirement (unless bypassed)
+            # Check required role requirement
             required_role_id = code_data.get("required_role_id")
             has_required_role = True
             if required_role_id and not has_bypass and message.guild:
@@ -1128,11 +1264,110 @@ async def on_message(message: discord.Message):
                 else:
                     has_required_role = False
 
-            # If user lacks the required role, ignore their message for this puzzle
             if not has_required_role:
                 return
 
-            # Winning condition: Exact match with ANY of the accepted answers, or bypass
+            target_code = accepted_answers[0]
+
+            # --- WORDLE GAME LOGIC ---
+            if challenge_type == "wordle":
+                # Only evaluate if guess is exact same length
+                if len(msg_clean) == len(target_code) and msg_clean.isalpha():
+                    feedback_line = calculate_wordle_feedback(msg_clean, target_code)
+                    code_data["wordle_guesses"].append(f"{feedback_line} ({message.author.mention})")
+                    
+                    # Update embed in channel
+                    embed_id = code_data.get("wordle_embed_id")
+                    if embed_id:
+                        try:
+                            embed_msg = await message.channel.fetch_message(embed_id)
+                            creator_user = bot.get_user(creator_id)
+                            creator_mention = creator_user.mention if creator_user else "Unknown"
+
+                            role_id = code_data.get("role_id")
+                            custom_reward_text = code_data.get("reward_text")
+                            reward_pieces = []
+                            if role_id and message.guild:
+                                r_obj = message.guild.get_role(role_id)
+                                if r_obj:
+                                    reward_pieces.append(r_obj.mention)
+                            if custom_reward_text:
+                                reward_pieces.append(custom_reward_text)
+                            
+                            reward_out = f"\n**Reward:** {' '.join(reward_pieces)}" if reward_pieces else ""
+                            req_r_id = code_data.get("required_role_id")
+                            if req_r_id and message.guild:
+                                r_req = message.guild.get_role(req_r_id)
+                                if r_req:
+                                    reward_out += f"\n**Required Role:** {r_req.mention}"
+
+                            guesses_formatted = "\n".join(code_data["wordle_guesses"][-10:])
+                            
+                            new_embed = discord.Embed(
+                                title="🟩 Wordle Challenge!",
+                                description=(
+                                    f"**Created by:** {creator_mention}\n"
+                                    f"**Word Length:** {len(target_code)} letters\n"
+                                    f"Guess by typing **{len(target_code)}-letter words** in chat!{reward_out}\n\n"
+                                    f"**Guesses:**\n{guesses_formatted}"
+                                ),
+                                color=discord.Color.green(),
+                            )
+                            if creator_user and hasattr(creator_user, "display_avatar"):
+                                new_embed.set_thumbnail(url=creator_user.display_avatar.url)
+                            
+                            await embed_msg.edit(embed=new_embed)
+                        except Exception as e:
+                            print(f"Error updating Wordle embed: {e}")
+
+                    # Check winning condition
+                    if msg_clean == target_code or has_bypass:
+                        start_time = code_data.get("start_time") or time.time()
+                        elapsed_seconds = round(time.time() - start_time, 2)
+                        role_id = code_data.get("role_id")
+                        custom_reward_text = code_data.get("reward_text")
+
+                        del active_codes[channel_id]
+
+                        user_id_str = str(message.author.id)
+                        if user_id_str not in leaderboard_data:
+                            leaderboard_data[user_id_str] = {
+                                "username": message.author.display_name,
+                                "total_solved": 0,
+                                "fastest_time": 999999.0
+                            }
+                        leaderboard_data[user_id_str]["username"] = message.author.display_name
+                        leaderboard_data[user_id_str]["total_solved"] += 1
+                        if elapsed_seconds < leaderboard_data[user_id_str]["fastest_time"]:
+                            leaderboard_data[user_id_str]["fastest_time"] = elapsed_seconds
+                        save_leaderboard()
+
+                        reward_desc = None
+                        if custom_reward_text:
+                            reward_desc = custom_reward_text
+                        elif role_id and message.guild:
+                            role_obj = message.guild.get_role(role_id)
+                            if role_obj:
+                                reward_desc = role_obj.name
+
+                        if role_id and isinstance(message.author, discord.Member) and message.guild:
+                            role = message.guild.get_role(role_id)
+                            if role:
+                                try:
+                                    await message.author.add_roles(role)
+                                except discord.Forbidden:
+                                    pass
+
+                        if reward_desc:
+                            embed_desc = f"{message.author.mention} solved the wordle for **{reward_desc}** in **{elapsed_seconds}** seconds!"
+                        else:
+                            embed_desc = f"{message.author.mention} solved the wordle in **{elapsed_seconds}** seconds!"
+
+                        success_embed = discord.Embed(description=embed_desc, color=discord.Color.green())
+                        await message.channel.send(embed=success_embed)
+                return
+
+            # --- STANDARD CODE & RIDDLE LOGIC ---
             is_exact_match = msg_clean in accepted_answers
 
             if is_exact_match or has_bypass:
@@ -1185,7 +1420,6 @@ async def on_message(message: discord.Message):
                 success_embed = discord.Embed(description=embed_desc, color=discord.Color.green())
                 await message.channel.send(embed=success_embed)
             else:
-                # Keyword or close match check against ALL accepted answers
                 has_keyword_match = False
                 is_close_typo = False
 
