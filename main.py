@@ -229,6 +229,7 @@ COUNTRY_DATA = {
     "new zealand": (-40.9006, 174.886, "New Zealand", "NZ"),
     "nicaragua": (12.8654, -85.2072, "Nicaragua", "NI"),
     "niger": (17.6078, 8.0817, "Niger", "NE"),
+    "🇳🇪": (17.6078, 8.0817, "Niger", "NE"),
     "nigeria": (9.082, 8.6753, "Nigeria", "NG"),
     "north korea": (40.3399, 127.5101, "North Korea", "KP"),
     "north macedonia": (41.6086, 21.7453, "North Macedonia", "MK"),
@@ -1594,7 +1595,7 @@ async def on_message(message: discord.Message):
                         await message.delete()
                     except discord.HTTPException:
                         pass
-                    await message.channel.send("please dont guess that one 🥀")
+                    await message.channel.send("please do the flag 🇳🇪 from now on.")
                     return
 
                 if msg_clean in COUNTRY_DATA:
