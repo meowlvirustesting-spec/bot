@@ -80,7 +80,7 @@ DEFAULT_COUNTRY_DATA = {
 
 
 def load_all_world_countries():
-    """Fetches all ~250 countries and coordinates live from REST Countries API."""
+    """Fetches all ~250 countries and coordinates live from REST Countries API securely."""
     country_dict = {}
     url = "https://restcountries.com/v3.1/all?fields=name,latlng,cca2,cca3"
     try:
@@ -90,27 +90,24 @@ def load_all_world_countries():
             for c in data:
                 latlng = c.get("latlng")
                 name_obj = c.get("name", {})
-                official_name = name_obj.get("common") or name_obj.get("official")
+                common_name = name_obj.get("common", "")
+                official_name = name_obj.get("official", "")
+                display_name = common_name or official_name
                 
-                if latlng and len(latlng) == 2 and official_name:
+                if latlng and len(latlng) == 2 and display_name:
                     lat, lon = float(latlng[0]), float(latlng[1])
                     
-                    # Store common name
-                    key = official_name.lower()
-                    country_dict[key] = (lat, lon, official_name)
-                    
-                    # Store official full name if different
-                    off_key = name_obj.get("official", "").lower()
-                    if off_key:
-                        country_dict[off_key] = (lat, lon, official_name)
+                    if common_name:
+                        country_dict[common_name.lower()] = (lat, lon, display_name)
+                    if official_name:
+                        country_dict[official_name.lower()] = (lat, lon, display_name)
                         
-                    # Store 2-letter & 3-letter codes (e.g. US, USA, GB, UK)
                     cca2 = c.get("cca2", "").lower()
                     cca3 = c.get("cca3", "").lower()
                     if cca2:
-                        country_dict[cca2] = (lat, lon, official_name)
+                        country_dict[cca2] = (lat, lon, display_name)
                     if cca3:
-                        country_dict[cca3] = (lat, lon, official_name)
+                        country_dict[cca3] = (lat, lon, display_name)
                         
             print(f"✅ Successfully loaded {len(country_dict)} country aliases/names!")
             return country_dict
@@ -564,7 +561,11 @@ async def guessthemysterycountry_slash(
             return
         chosen_key = clean_c
     else:
-        chosen_key = random.choice(list(COUNTRY_DATA.keys()))
+        # Pick from unique country entries to avoid weighting duplicates
+        unique_countries = list(set(val[2] for val in COUNTRY_DATA.values()))
+        chosen_display = random.choice(unique_countries)
+        # Find matching key
+        chosen_key = chosen_display.lower()
 
     lat, lon, official_name = COUNTRY_DATA[chosen_key]
 
