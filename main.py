@@ -109,13 +109,6 @@ def calculate_bearing_direction(lat1: float, lon1: float, lat2: float, lon2: flo
         return "⬆️ N"
 
 
-def get_static_map_url(lat: float, lon: float) -> str:
-    """Method A: Generates a static map image URL for Discord embeds."""
-    # Example using Geoapify Static Maps API format (Replace API_KEY with your key or use a free tier)
-    api_key = os.getenv("MAP_API_KEY", "YOUR_API_KEY_HERE")
-    return f"https://maps.geoapify.com/v1/staticmap?style=osm-carto&width=600&height=300&center=lonlat:{lon},{lat}&zoom=4&marker=lonlat:{lon},{lat}:color%3Ared%7Csize%3Amedium&apiKey={api_key}"
-
-
 async def log_admin_action(executor: discord.User | discord.Member, action_title: str, details: str):
     log_channel_id = bot_settings.get("admin_log_channel_id")
     if not log_channel_id:
@@ -186,7 +179,13 @@ COUNTRY_DATA = {
     "colombia": (4.5709, -74.2973, "Colombia", "CO"),
     "comoros": (-11.875, 43.8722, "Comoros", "KM"),
     "congo": (-0.228, 15.8277, "Congo", "CG"),
+    "democratic republic of the congo": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD"),
+    "dr congo": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD"),
+    "drc": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD"),
     "costa rica": (10.4806, -83.5858, "Costa Rica", "CR"),
+    "cote d'ivoire": (7.5400, -5.5471, "Côte d'Ivoire", "CI"),
+    "cote divoire": (7.5400, -5.5471, "Côte d'Ivoire", "CI"),
+    "ivory coast": (7.5400, -5.5471, "Côte d'Ivoire", "CI"),
     "croatia": (45.1, 15.2, "Croatia", "HR"),
     "cuba": (21.5218, -77.7812, "Cuba", "CU"),
     "cyprus": (35.1264, 33.4299, "Cyprus", "CY"),
@@ -234,6 +233,7 @@ COUNTRY_DATA = {
     "kazakhstan": (48.0196, 66.9237, "Kazakhstan", "KZ"),
     "kenya": (-0.0236, 37.9062, "Kenya", "KE"),
     "kiribati": (-3.3704, -168.734, "Kiribati", "KI"),
+    "kosovo": (42.6026, 20.9030, "Kosovo", "XK"),
     "kuwait": (29.3117, 47.4818, "Kuwait", "KW"),
     "kyrgyzstan": (41.2044, 74.7661, "Kyrgyzstan", "KG"),
     "laos": (19.8563, 102.4955, "Laos", "LA"),
@@ -278,6 +278,7 @@ COUNTRY_DATA = {
     "oman": (21.5126, 55.9232, "Oman", "OM"),
     "pakistan": (30.3753, 69.3451, "Pakistan", "PK"),
     "palau": (7.515, 134.5825, "Palau", "PW"),
+    "palestine": (31.9522, 35.2332, "Palestine", "PS"),
     "panama": (8.538, -80.7821, "Panama", "PA"),
     "papua new guinea": (-6.3149, 143.9555, "Papua New Guinea", "PG"),
     "paraguay": (-23.4425, -58.4438, "Paraguay", "PY"),
@@ -375,7 +376,6 @@ COUNTRY_DATA = {
     "niue": (-19.0544, -169.8672, "Niue", "NU"),
     "norfolk island": (-29.0408, 167.9547, "Norfolk Island", "NF"),
     "northern mariana islands": (15.0979, 145.6739, "Northern Mariana Islands", "MP"),
-    "palestine": (31.9522, 35.2332, "Palestine", "PS"),
     "puerto rico": (18.2208, -66.5901, "Puerto Rico", "PR"),
     "reunion": (-21.1151, 55.5364, "Réunion", "RE"),
     "saint barthelemy": (17.9, -62.8333, "Saint Barthélemy", "BL"),
@@ -874,10 +874,6 @@ async def guessthemysterycountry_slash(
         ),
         color=discord.Color.teal()
     )
-    # Method A: Attach the static map image to the embed
-    map_url = get_static_map_url(lat, lon)
-    embed.set_image(url=map_url)
-
     if hasattr(interaction.user, "display_avatar"):
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
@@ -1825,9 +1821,6 @@ async def on_message(message: discord.Message):
                                 ),
                                 color=discord.Color.teal(),
                             )
-                            # Keep the static map image on update
-                            new_embed.set_image(url=get_static_map_url(target_lat, target_lon))
-
                             if creator_user and hasattr(creator_user, "display_avatar"):
                                 new_embed.set_thumbnail(url=creator_user.display_avatar.url)
 
