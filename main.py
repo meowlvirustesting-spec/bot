@@ -109,6 +109,13 @@ def calculate_bearing_direction(lat1: float, lon1: float, lat2: float, lon2: flo
         return "⬆️ N"
 
 
+def get_static_map_url(lat: float, lon: float) -> str:
+    """Method A: Generates a static map image URL for Discord embeds."""
+    # Example using Geoapify Static Maps API format (Replace API_KEY with your key or use a free tier)
+    api_key = os.getenv("MAP_API_KEY", "YOUR_API_KEY_HERE")
+    return f"https://maps.geoapify.com/v1/staticmap?style=osm-carto&width=600&height=300&center=lonlat:{lon},{lat}&zoom=4&marker=lonlat:{lon},{lat}:color%3Ared%7Csize%3Amedium&apiKey={api_key}"
+
+
 async def log_admin_action(executor: discord.User | discord.Member, action_title: str, details: str):
     log_channel_id = bot_settings.get("admin_log_channel_id")
     if not log_channel_id:
@@ -867,6 +874,10 @@ async def guessthemysterycountry_slash(
         ),
         color=discord.Color.teal()
     )
+    # Method A: Attach the static map image to the embed
+    map_url = get_static_map_url(lat, lon)
+    embed.set_image(url=map_url)
+
     if hasattr(interaction.user, "display_avatar"):
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
@@ -1814,6 +1825,9 @@ async def on_message(message: discord.Message):
                                 ),
                                 color=discord.Color.teal(),
                             )
+                            # Keep the static map image on update
+                            new_embed.set_image(url=get_static_map_url(target_lat, target_lon))
+
                             if creator_user and hasattr(creator_user, "display_avatar"):
                                 new_embed.set_thumbnail(url=creator_user.display_avatar.url)
 
