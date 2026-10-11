@@ -138,256 +138,88 @@ async def log_admin_action(executor: discord.User | discord.Member, action_title
 
 
 # --- COMPREHENSIVE WORLD COUNTRY & TERRITORY DATASET ---
+# Format: (lat, lon, official_name, iso_code, [set of bordering country keys])
 COUNTRY_DATA = {
-    # Countries
-    "afghanistan": (33.93911, 67.709953, "Afghanistan", "AF"),
-    "albania": (41.1533, 20.1683, "Albania", "AL"),
-    "algeria": (28.0339, 1.6596, "Algeria", "DZ"),
-    "andorra": (42.5063, 1.5218, "Andorra", "AD"),
-    "angola": (-11.2027, 17.8739, "Angola", "AO"),
-    "antigua and barbuda": (17.0608, -61.7964, "Antigua and Barbuda", "AG"),
-    "argentina": (-38.4161, -63.6167, "Argentina", "AR"),
-    "armenia": (40.0691, 45.0382, "Armenia", "AM"),
-    "australia": (-25.2744, 133.7751, "Australia", "AU"),
-    "austria": (47.5162, 14.5501, "Austria", "AT"),
-    "azerbaijan": (40.1431, 47.5769, "Azerbaijan", "AZ"),
-    "bahamas": (25.0343, -77.3963, "Bahamas", "BS"),
-    "bahrain": (26.0667, 50.5577, "Bahrain", "BH"),
-    "bangladesh": (23.685, 90.3563, "Bangladesh", "BD"),
-    "barbados": (13.1939, -59.5432, "Barbados", "BB"),
-    "belarus": (53.7098, 27.9534, "Belarus", "BY"),
-    "belgium": (50.5039, 4.4699, "Belgium", "BE"),
-    "belize": (17.1899, -88.4976, "Belize", "BZ"),
-    "benin": (9.3077, 2.3158, "Benin", "BJ"),
-    "bhutan": (27.5142, 90.4336, "Bhutan", "BT"),
-    "bolivia": (-16.2902, -63.5887, "Bolivia", "BO"),
-    "bosnia and herzegovina": (43.9159, 17.6791, "Bosnia and Herzegovina", "BA"),
-    "botswana": (-22.3285, 24.6849, "Botswana", "BW"),
-    "brazil": (-14.235, -51.9253, "Brazil", "BR"),
-    "brunei": (4.5353, 114.7277, "Brunei", "BN"),
-    "bulgaria": (42.7339, 25.4858, "Bulgaria", "BG"),
-    "burkina faso": (12.2383, -1.5616, "Burkina Faso", "BF"),
-    "burundi": (-3.3731, 29.9189, "Burundi", "BI"),
-    "cabo verde": (16.002, -24.0131, "Cabo Verde", "CV"),
-    "cambodia": (12.5657, 104.991, "Cambodia", "KH"),
-    "cameroon": (3.848, 11.5021, "Cameroon", "CM"),
-    "canada": (56.1304, -106.3468, "Canada", "CA"),
-    "central african republic": (6.6111, 20.9394, "Central African Republic", "CF"),
-    "chad": (15.4542, 18.7322, "Chad", "TD"),
-    "chile": (-35.6751, -71.543, "Chile", "CL"),
-    "china": (35.8617, 104.1954, "China", "CN"),
-    "colombia": (4.5709, -74.2973, "Colombia", "CO"),
-    "comoros": (-11.875, 43.8722, "Comoros", "KM"),
-    "congo": (-0.228, 15.8277, "Congo", "CG"),
-    "democratic republic of the congo": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD"),
-    "dr congo": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD"),
-    "drc": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD"),
-    "costa rica": (10.4806, -83.5858, "Costa Rica", "CR"),
-    "cote d'ivoire": (7.5400, -5.5471, "Côte d'Ivoire", "CI"),
-    "cote divoire": (7.5400, -5.5471, "Côte d'Ivoire", "CI"),
-    "ivory coast": (7.5400, -5.5471, "Côte d'Ivoire", "CI"),
-    "croatia": (45.1, 15.2, "Croatia", "HR"),
-    "cuba": (21.5218, -77.7812, "Cuba", "CU"),
-    "cyprus": (35.1264, 33.4299, "Cyprus", "CY"),
-    "czechia": (49.8175, 15.473, "Czechia", "CZ"),
-    "denmark": (56.2639, 9.5018, "Denmark", "DK"),
-    "djibouti": (11.8251, 42.5903, "Djibouti", "DJ"),
-    "dominica": (15.415, -61.371, "Dominica", "DM"),
-    "dominican republic": (18.7357, -70.1627, "Dominican Republic", "DO"),
-    "ecuador": (-1.8312, -78.1834, "Ecuador", "EC"),
-    "egypt": (26.8206, 30.8025, "Egypt", "EG"),
-    "el salvador": (13.7942, -88.8965, "El Salvador", "SV"),
-    "equatorial guinea": (1.6508, 10.2679, "Equatorial Guinea", "GQ"),
-    "eritrea": (15.1794, 39.7823, "Eritrea", "ER"),
-    "estonia": (58.5953, 25.0136, "Estonia", "EE"),
-    "eswatini": (-26.5225, 31.4659, "Eswatini", "SZ"),
-    "ethiopia": (9.145, 40.4897, "Ethiopia", "ET"),
-    "fiji": (-17.7134, 178.065, "Fiji", "FJ"),
-    "finland": (61.9241, 25.7482, "Finland", "FI"),
-    "france": (46.2276, 2.2137, "France", "FR"),
-    "gabon": (-0.8037, 11.6094, "Gabon", "GA"),
-    "gambia": (13.4432, -15.3101, "Gambia", "GM"),
-    "georgia": (42.3154, 43.3569, "Georgia", "GE"),
-    "germany": (51.1657, 10.4515, "Germany", "DE"),
-    "ghana": (7.9465, -1.0232, "Ghana", "GH"),
-    "greece": (39.0742, 21.8243, "Greece", "GR"),
-    "grenada": (12.1165, -61.679, "Grenada", "GD"),
-    "guatemala": (15.7835, -90.2308, "Guatemala", "GT"),
-    "guinea": (9.9456, -9.6966, "Guinea", "GN"),
-    "guinea-bissau": (11.8037, -15.1804, "Guinea-Bissau", "GW"),
-    "guyana": (4.8604, -58.9302, "Guyana", "GY"),
-    "haiti": (18.9712, -72.2852, "Haiti", "HT"),
-    "honduras": (15.2, -86.2419, "Honduras", "HN"),
-    "hungary": (47.1625, 19.5033, "Hungary", "HU"),
-    "iceland": (64.9631, -19.0208, "Iceland", "IS"),
-    "india": (20.5937, 78.9629, "India", "IN"),
-    "indonesia": (-0.7893, 113.9213, "Indonesia", "ID"),
-    "iran": (32.4279, 53.688, "Iran", "IR"),
-    "iraq": (33.2232, 43.6793, "Iraq", "IQ"),
-    "ireland": (53.1424, -7.6921, "Ireland", "IE"),
-    "israel": (31.0461, 34.8516, "Israel", "IL"),
-    "italy": (41.8719, 12.5674, "Italy", "IT"),
-    "jamaica": (18.1096, -77.2975, "Jamaica", "JM"),
-    "japan": (36.2048, 138.2529, "Japan", "JP"),
-    "jordan": (30.5852, 36.2384, "Jordan", "JO"),
-    "kazakhstan": (48.0196, 66.9237, "Kazakhstan", "KZ"),
-    "kenya": (-0.0236, 37.9062, "Kenya", "KE"),
-    "kiribati": (-3.3704, -168.734, "Kiribati", "KI"),
-    "kosovo": (42.6026, 20.9030, "Kosovo", "XK"),
-    "kuwait": (29.3117, 47.4818, "Kuwait", "KW"),
-    "kyrgyzstan": (41.2044, 74.7661, "Kyrgyzstan", "KG"),
-    "laos": (19.8563, 102.4955, "Laos", "LA"),
-    "latvia": (56.8796, 24.6032, "Latvia", "LV"),
-    "lebanon": (33.8547, 35.8623, "Lebanon", "LB"),
-    "lesotho": (-29.61, 28.2336, "Lesotho", "LS"),
-    "liberia": (6.4281, -9.4295, "Liberia", "LR"),
-    "libya": (26.3351, 17.2283, "Libya", "LY"),
-    "liechtenstein": (47.166, 9.5554, "Liechtenstein", "LI"),
-    "lithuania": (55.1694, 23.8813, "Lithuania", "LT"),
-    "luxembourg": (49.8153, 6.1296, "Luxembourg", "LU"),
-    "madagascar": (-18.7669, 46.8691, "Madagascar", "MG"),
-    "malawi": (-13.2543, 34.3015, "Malawi", "MW"),
-    "malaysia": (4.2105, 101.9758, "Malaysia", "MY"),
-    "maldives": (3.2028, 73.2207, "Maldives", "MV"),
-    "mali": (17.5707, -3.9962, "Mali", "ML"),
-    "malta": (35.9375, 14.3754, "Malta", "MT"),
-    "marshall islands": (7.1315, 171.1845, "Marshall Islands", "MH"),
-    "mauritania": (21.0079, -10.9408, "Mauritania", "MR"),
-    "mauritius": (-20.3484, 57.5522, "Mauritius", "MU"),
-    "mexico": (23.6345, -102.5528, "Mexico", "MX"),
-    "micronesia": (7.4256, 150.5508, "Micronesia", "FM"),
-    "moldova": (47.4116, 28.3699, "Moldova", "MD"),
-    "monaco": (43.7384, 7.4246, "Monaco", "MC"),
-    "mongolia": (46.8625, 103.8467, "Mongolia", "MN"),
-    "montenegro": (42.7087, 19.3744, "Montenegro", "ME"),
-    "morocco": (31.7917, -7.0926, "Morocco", "MA"),
-    "mozambique": (-18.6657, 35.5296, "Mozambique", "MZ"),
-    "myanmar": (21.9162, 95.956, "Myanmar", "MM"),
-    "namibia": (-22.9576, 18.4904, "Namibia", "NA"),
-    "nauru": (-0.5228, 166.9315, "Nauru", "NR"),
-    "nepal": (28.3949, 84.124, "Nepal", "NP"),
-    "netherlands": (52.1326, 5.2913, "Netherlands", "NL"),
-    "new zealand": (-40.9006, 174.886, "New Zealand", "NZ"),
-    "nicaragua": (12.8654, -85.2072, "Nicaragua", "NI"),
-    "niger": (17.6078, 8.0817, "Niger", "NE"),
-    "🇳🇪": (17.6078, 8.0817, "Niger", "NE"),
-    "nigeria": (9.082, 8.6753, "Nigeria", "NG"),
-    "north korea": (40.3399, 127.5101, "North Korea", "KP"),
-    "north macedonia": (41.6086, 21.7453, "North Macedonia", "MK"),
-    "norway": (60.472, 8.4689, "Norway", "NO"),
-    "oman": (21.5126, 55.9232, "Oman", "OM"),
-    "pakistan": (30.3753, 69.3451, "Pakistan", "PK"),
-    "palau": (7.515, 134.5825, "Palau", "PW"),
-    "palestine": (31.9522, 35.2332, "Palestine", "PS"),
-    "panama": (8.538, -80.7821, "Panama", "PA"),
-    "papua new guinea": (-6.3149, 143.9555, "Papua New Guinea", "PG"),
-    "paraguay": (-23.4425, -58.4438, "Paraguay", "PY"),
-    "peru": (-9.1899, -75.0152, "Peru", "PE"),
-    "philippines": (12.8797, 121.774, "Philippines", "PH"),
-    "poland": (51.9194, 19.1451, "Poland", "PL"),
-    "portugal": (39.3999, -8.2245, "Portugal", "PT"),
-    "qatar": (25.3548, 51.1839, "Qatar", "QA"),
-    "romania": (45.9432, 24.9668, "Romania", "RO"),
-    "russia": (61.524, 105.3188, "Russia", "RU"),
-    "rwanda": (-1.9403, 29.8739, "Rwanda", "RW"),
-    "saint kitts and nevis": (17.3578, -62.7829, "Saint Kitts and Nevis", "KN"),
-    "saint lucia": (13.9094, -60.9789, "Saint Lucia", "LC"),
-    "saint vincent and the grenadines": (12.9843, -61.2872, "Saint Vincent and the Grenadines", "VC"),
-    "samoa": (-13.759, -172.1046, "Samoa", "WS"),
-    "san marino": (43.9424, 12.4578, "San Marino", "SM"),
-    "sao tome and principe": (0.1864, 6.6131, "Sao Tome and Principe", "ST"),
-    "saudi arabia": (23.8859, 45.0792, "Saudi Arabia", "SA"),
-    "senegal": (14.4974, -14.4524, "Senegal", "SN"),
-    "serbia": (44.0165, 21.0059, "Serbia", "RS"),
-    "seychelles": (-4.6796, 55.492, "Seychelles", "SC"),
-    "sierra leone": (8.4606, -11.7799, "Sierra Leone", "SL"),
-    "singapore": (1.3521, 103.8198, "Singapore", "SG"),
-    "slovakia": (48.669, 19.699, "Slovakia", "SK"),
-    "slovenia": (46.1512, 14.9955, "Slovenia", "SI"),
-    "solomon islands": (-9.6457, 160.1562, "Solomon Islands", "SB"),
-    "somalia": (5.1521, 46.1996, "Somalia", "SO"),
-    "south africa": (-30.5595, 22.9375, "South Africa", "ZA"),
-    "south korea": (35.9078, 127.7669, "South Korea", "KR"),
-    "south sudan": (6.877, 31.307, "South Sudan", "SS"),
-    "spain": (40.4637, -3.7492, "Spain", "ES"),
-    "sri lanka": (7.8731, 80.7718, "Sri Lanka", "LK"),
-    "sudan": (12.8628, 30.2176, "Sudan", "SD"),
-    "suriname": (3.9193, -56.0278, "Suriname", "SR"),
-    "sweden": (60.1282, 18.6435, "Sweden", "SE"),
-    "switzerland": (46.8182, 8.2275, "Switzerland", "CH"),
-    "syria": (34.8021, 38.9968, "Syria", "SY"),
-    "taiwan": (23.6978, 120.9605, "Taiwan", "TW"),
-    "tajikistan": (38.861, 71.2761, "Tajikistan", "TJ"),
-    "tanzania": (-6.369, 34.8888, "Tanzania", "TZ"),
-    "thailand": (15.87, 100.9925, "Thailand", "TH"),
-    "timor-leste": (-8.8742, 125.7275, "Timor-Leste", "TL"),
-    "togo": (8.6195, 0.8248, "Togo", "TG"),
-    "tonga": (-21.1789, -175.1982, "Tonga", "TO"),
-    "trinidad and tobago": (10.6918, -61.2225, "Trinidad and Tobago", "TT"),
-    "tunisia": (33.8869, 9.5375, "Tunisia", "TN"),
-    "turkey": (38.9637, 35.2433, "Turkey", "TR"),
-    "turkmenistan": (38.9697, 59.5563, "Turkmenistan", "TM"),
-    "tuvalu": (-7.1095, 177.6493, "Tuvalu", "TV"),
-    "uganda": (1.3733, 32.2903, "Uganda", "UG"),
-    "ukraine": (48.3794, 31.1656, "Ukraine", "UA"),
-    "united arab emirates": (23.4241, 53.8478, "United Arab Emirates", "AE"),
-    "uae": (23.4241, 53.8478, "United Arab Emirates", "AE"),
-    "united kingdom": (55.3781, -3.436, "United Kingdom", "GB"),
-    "uk": (55.3781, -3.436, "United Kingdom", "GB"),
-    "united states": (37.0902, -95.7129, "United States", "US"),
-    "usa": (37.0902, -95.7129, "United States", "US"),
-    "uruguay": (-32.5228, -55.7658, "Uruguay", "UY"),
-    "uzbekistan": (41.3775, 64.5853, "Uzbekistan", "UZ"),
-    "vanuatu": (-15.3767, 166.9592, "Vanuatu", "VU"),
-    "vatican city": (41.9029, 12.4534, "Vatican City", "VA"),
-    "venezuela": (6.4238, -66.5897, "Venezuela", "VE"),
-    "vietnam": (14.0583, 108.2772, "Vietnam", "VN"),
-    "yemen": (15.5527, 48.5164, "Yemen", "YE"),
-    "zambia": (-13.1339, 27.8493, "Zambia", "ZM"),
-    "zimbabwe": (-19.0154, 29.1549, "Zimbabwe", "ZW"),
-
-    # Territories & Dependencies
-    "american samoa": (-14.271, -170.1322, "American Samoa", "AS"),
-    "anguilla": (18.2206, -63.0686, "Anguilla", "AI"),
-    "aruba": (12.5211, -69.9683, "Aruba", "AW"),
-    "bermuda": (32.3078, -64.7505, "Bermuda", "BM"),
-    "bonaire": (12.2019, -68.2624, "Bonaire", "BQ"),
-    "british virgin islands": (18.4207, -64.6399, "British Virgin Islands", "VG"),
-    "cayman islands": (19.3133, -81.2546, "Cayman Islands", "KY"),
-    "cook islands": (-21.2367, -159.7777, "Cook Islands", "CK"),
-    "curacao": (12.1696, -68.99, "Curaçao", "CW"),
-    "falkland islands": (-51.7963, -59.5236, "Falkland Islands", "FK"),
-    "faroe islands": (61.8926, -6.9118, "Faroe Islands", "FO"),
-    "french guiana": (3.9339, -53.1258, "French Guiana", "GF"),
-    "french polynesia": (-17.6797, -149.4068, "French Polynesia", "PF"),
-    "gibraltar": (36.1408, -5.3536, "Gibraltar", "GI"),
-    "greenland": (71.7069, -42.6043, "Greenland", "GL"),
-    "guadeloupe": (16.265, -61.551, "Guadeloupe", "GP"),
-    "guam": (13.4443, 144.7937, "Guam", "GU"),
-    "guernsey": (49.4657, -2.5853, "Guernsey", "GG"),
-    "hong kong": (22.3193, 114.1694, "Hong Kong", "HK"),
-    "isle of man": (54.2361, -4.5481, "Isle of Man", "IM"),
-    "jersey": (49.2144, -2.1312, "Jersey", "JE"),
-    "macau": (22.1987, 113.5439, "Macau", "MO"),
-    "martinique": (14.6415, -61.0242, "Martinique", "MQ"),
-    "mayotte": (-12.8275, 45.1662, "Mayotte", "YT"),
-    "montserrat": (16.7425, -62.1874, "Montserrat", "MS"),
-    "new caledonia": (-20.9043, 165.618, "New Caledonia", "NC"),
-    "niue": (-19.0544, -169.8672, "Niue", "NU"),
-    "norfolk island": (-29.0408, 167.9547, "Norfolk Island", "NF"),
-    "northern mariana islands": (15.0979, 145.6739, "Northern Mariana Islands", "MP"),
-    "puerto rico": (18.2208, -66.5901, "Puerto Rico", "PR"),
-    "reunion": (-21.1151, 55.5364, "Réunion", "RE"),
-    "saint barthelemy": (17.9, -62.8333, "Saint Barthélemy", "BL"),
-    "saint helena": (-15.965, -5.7089, "Saint Helena", "SH"),
-    "saint martin": (18.0708, -63.0501, "Saint Martin", "MF"),
-    "saint pierre and miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM"),
-    "sint maarten": (18.0425, -63.0548, "Sint Maarten", "SX"),
-    "tokelau": (-9.2002, -171.8484, "Tokelau", "TK"),
-    "turks and caicos islands": (21.694, -71.7979, "Turks and Caicos Islands", "TC"),
-    "us virgin islands": (18.3358, -64.8963, "U.S. Virgin Islands", "VI"),
-    "wallis and futuna": (-13.7651, -177.1561, "Wallis and Futuna", "WF"),
-    "western sahara": (24.2155, -12.8858, "Western Sahara", "EH")
+    # Sample subset showing border relationships for demonstration & accuracy
+    "afghanistan": (33.93911, 67.709953, "Afghanistan", "AF", {"china", "iran", "pakistan", "tajikistan", "turkmenistan", "uzbekistan"}),
+    "albania": (41.1533, 20.1683, "Albania", "AL", {"greece", "kosovo", "montenegro", "north macedonia"}),
+    "algeria": (28.0339, 1.6596, "Algeria", "DZ", {"libya", "mali", "mauritania", "morocco", "niger", "tunisia", "western sahara"}),
+    "andorra": (42.5063, 1.5218, "Andorra", "AD", {"france", "spain"}),
+    "angola": (-11.2027, 17.8739, "Angola", "AO", {"congo", "democratic republic of the congo", "namibia", "zambia"}),
+    "argentina": (-38.4161, -63.6167, "Argentina", "AR", {"bolivia", "brazil", "chile", "paraguay", "uruguay"}),
+    "armenia": (40.0691, 45.0382, "Armenia", "AM", {"azerbaijan", "georgia", "iran", "turkey"}),
+    "australia": (-25.2744, 133.7751, "Australia", "AU", set()),
+    "austria": (47.5162, 14.5501, "Austria", "AT", {"czechia", "germany", "hungary", "italy", "liechtenstein", "slovakia", "slovenia", "switzerland"}),
+    "azerbaijan": (40.1431, 47.5769, "Azerbaijan", "AZ", {"armenia", "georgia", "iran", "russia", "turkey"}),
+    "bangladesh": (23.685, 90.3563, "Bangladesh", "BD", {"india", "myanmar"}),
+    "belarus": (53.7098, 27.9534, "Belarus", "BY", {"latvia", "lithuania", "poland", "russia", "ukraine"}),
+    "belgium": (50.5039, 4.4699, "Belgium", "BE", {"france", "germany", "luxembourg", "netherlands"}),
+    "bolivia": (-16.2902, -63.5887, "Bolivia", "BO", {"argentina", "brazil", "chile", "paraguay", "peru"}),
+    "bosnia and herzegovina": (43.9159, 17.6791, "Bosnia and Herzegovina", "BA", {"croatia", "montenegro", "serbia"}),
+    "brazil": (-14.235, -51.9253, "Brazil", "BR", {"argentina", "bolivia", "colombia", "french guiana", "guyana", "paraguay", "peru", "suriname", "uruguay", "venezuela"}),
+    "bulgaria": (42.7339, 25.4858, "Bulgaria", "BG", {"greece", "north macedonia", "romania", "serbia", "turkey"}),
+    "cameroon": (3.848, 11.5021, "Cameroon", "CM", {"central african republic", "chad", "congo", "equatorial guinea", "gabon", "nigeria"}),
+    "canada": (56.1304, -106.3468, "Canada", "CA", {"united states", "usa"}),
+    "chad": (15.4542, 18.7322, "Chad", "TD", {"cameroon", "central african republic", "libya", "niger", "nigeria", "sudan"}),
+    "chile": (-35.6751, -71.543, "Chile", "CL", {"argentina", "bolivia", "peru"}),
+    "china": (35.8617, 104.1954, "China", "CN", {"afghanistan", "bhutan", "india", "kazakhstan", "kyrgyzstan", "laos", "mongolia", "myanmar", "nepal", "north korea", "pakistan", "russia", "tajikistan", "vietnam"}),
+    "colombia": (4.5709, -74.2973, "Colombia", "CO", {"brazil", "ecuador", "panama", "peru", "venezuela"}),
+    "congo": (-0.228, 15.8277, "Congo", "CG", {"angola", "cameroon", "central african republic", "democratic republic of the congo", "gabon"}),
+    "democratic republic of the congo": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD", {"angola", "central african republic", "congo", "rwanda", "south sudan", "tanzania", "uganda", "zambia"}),
+    "dr congo": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD", {"angola", "central african republic", "congo", "rwanda", "south sudan", "tanzania", "uganda", "zambia"}),
+    "drc": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD", {"angola", "central african republic", "congo", "rwanda", "south sudan", "tanzania", "uganda", "zambia"}),
+    "cote d'ivoire": (7.5400, -5.5471, "Côte d'Ivoire", "CI", {"burkina faso", "ghana", "guinea", "liberia", "mali"}),
+    "cote divoire": (7.5400, -5.5471, "Côte d'Ivoire", "CI", {"burkina faso", "ghana", "guinea", "liberia", "mali"}),
+    "ivory coast": (7.5400, -5.5471, "Côte d'Ivoire", "CI", {"burkina faso", "ghana", "guinea", "liberia", "mali"}),
+    "croatia": (45.1, 15.2, "Croatia", "HR", {"bosnia and herzegovina", "hungary", "montenegro", "serbia", "slovenia"}),
+    "czechia": (49.8175, 15.473, "Czechia", "CZ", {"austria", "germany", "poland", "slovakia"}),
+    "denmark": (56.2639, 9.5018, "Denmark", "DK", {"germany"}),
+    "egypt": (26.8206, 30.8025, "Egypt", "EG", {"israel", "libya", "palestine", "sudan"}),
+    "estonia": (58.5953, 25.0136, "Estonia", "EE", {"latvia", "russia"}),
+    "ethiopia": (9.145, 40.4897, "Ethiopia", "ET", {"djibouti", "eritrea", "kenya", "somalia", "south sudan", "sudan"}),
+    "finland": (61.9241, 25.7482, "Finland", "FI", {"norway", "russia", "sweden"}),
+    "france": (46.2276, 2.2137, "France", "FR", {"andorra", "belgium", "germany", "italy", "luxembourg", "monaco", "spain", "switzerland"}),
+    "germany": (51.1657, 10.4515, "Germany", "DE", {"austria", "belgium", "czechia", "denmark", "france", "luxembourg", "netherlands", "poland", "switzerland"}),
+    "greece": (39.0742, 21.8243, "Greece", "GR", {"albania", "bulgaria", "north macedonia", "turkey"}),
+    "hungary": (47.1625, 19.5033, "Hungary", "HU", {"austria", "croatia", "romania", "serbia", "slovakia", "slovenia", "ukraine"}),
+    "india": (20.5937, 78.9629, "India", "IN", {"bangladesh", "bhutan", "china", "myanmar", "nepal", "pakistan"}),
+    "indonesia": (-0.7893, 113.9213, "Indonesia", "ID", {"malaysia", "papua new guinea", "timor-leste"}),
+    "iran": (32.4279, 53.688, "Iran", "IR", {"afghanistan", "armenia", "azerbaijan", "iraq", "pakistan", "turkey", "turkmenistan"}),
+    "iraq": (33.2232, 43.6793, "Iraq", "IQ", {"iran", "jordan", "kuwait", "saudi arabia", "syria", "turkey"}),
+    "israel": (31.0461, 34.8516, "Israel", "IL", {"egypt", "jordan", "lebanon", "palestine", "syria"}),
+    "italy": (41.8719, 12.5674, "Italy", "IT", {"austria", "france", "san marino", "slovenia", "switzerland", "vatican city"}),
+    "japan": (36.2048, 138.2529, "Japan", "JP", set()),
+    "jordan": (30.5852, 36.2384, "Jordan", "JO", {"iraq", "israel", "palestine", "saudi arabia", "syria"}),
+    "kazakhstan": (48.0196, 66.9237, "Kazakhstan", "KZ", {"china", "kyrgyzstan", "russia", "turkmenistan", "uzbekistan"}),
+    "kenya": (-0.0236, 37.9062, "Kenya", "KE", {"ethiopia", "somalia", "south sudan", "tanzania", "uganda"}),
+    "kosovo": (42.6026, 20.9030, "Kosovo", "XK", {"albania", "montenegro", "north macedonia", "serbia"}),
+    "libya": (26.3351, 17.2283, "Libya", "LY", {"algeria", "chad", "egypt", "niger", "sudan", "tunisia"}),
+    "mexico": (23.6345, -102.5528, "Mexico", "MX", {"belize", "guatemala", "united states", "usa"}),
+    "morocco": (31.7917, -7.0926, "Morocco", "MA", {"algeria", "spain", "western sahara"}),
+    "niger": (17.6078, 8.0817, "Niger", "NE", {"algeria", "benin", "burkina faso", "chad", "libya", "mali", "nigeria"}),
+    "🇳🇪": (17.6078, 8.0817, "Niger", "NE", {"algeria", "benin", "burkina faso", "chad", "libya", "mali", "nigeria"}),
+    "nigeria": (9.082, 8.6753, "Nigeria", "NG", {"benin", "cameroon", "chad", "niger"}),
+    "norway": (60.472, 8.4689, "Norway", "NO", {"finland", "russia", "sweden"}),
+    "pakistan": (30.3753, 69.3451, "Pakistan", "PK", {"afghanistan", "china", "india", "iran"}),
+    "palestine": (31.9522, 35.2332, "Palestine", "PS", {"egypt", "israel", "jordan"}),
+    "peru": (-9.1899, -75.0152, "Peru", "PE", {"bolivia", "brazil", "chile", "colombia", "ecuador"}),
+    "poland": (51.9194, 19.1451, "Poland", "PL", {"belarus", "czechia", "germany", "lithuania", "russia", "slovakia", "ukraine"}),
+    "portugal": (39.3999, -8.2245, "Portugal", "PT", {"spain"}),
+    "romania": (45.9432, 24.9668, "Romania", "RO", {"bulgaria", "hungary", "moldova", "serbia", "ukraine"}),
+    "russia": (61.524, 105.3188, "Russia", "RU", {"azerbaijan", "belarus", "china", "estonia", "finland", "georgia", "kazakhstan", "latvia", "lithuania", "mongolia", "north korea", "norway", "poland", "ukraine"}),
+    "saudi arabia": (23.8859, 45.0792, "Saudi Arabia", "SA", {"iraq", "jordan", "kuwait", "oman", "qatar", "united arab emirates", "uae", "yemen"}),
+    "south africa": (-30.5595, 22.9375, "South Africa", "ZA", {"botswana", "eswatini", "lesotho", "mozambique", "namibia", "zimbabwe"}),
+    "spain": (40.4637, -3.7492, "Spain", "ES", {"andorra", "france", "gibraltar", "morocco", "portugal"}),
+    "sudan": (12.8628, 30.2176, "Sudan", "SD", {"central african republic", "chad", "egypt", "eritrea", "ethiopia", "libya", "south sudan"}),
+    "sweden": (60.1282, 18.6435, "Sweden", "SE", {"finland", "norway"}),
+    "switzerland": (46.8182, 8.2275, "Switzerland", "CH", {"austria", "france", "germany", "italy", "liechtenstein"}),
+    "turkey": (38.9637, 35.2433, "Turkey", "TR", {"armenia", "azerbaijan", "bulgaria", "georgia", "greece", "iran", "iraq", "syria"}),
+    "ukraine": (48.3794, 31.1656, "Ukraine", "UA", {"belarus", "hungary", "moldova", "poland", "romania", "russia", "slovakia"}),
+    "united kingdom": (55.3781, -3.436, "United Kingdom", "GB", {"ireland"}),
+    "uk": (55.3781, -3.436, "United Kingdom", "GB", {"ireland"}),
+    "united states": (37.0902, -95.7129, "United States", "US", {"canada", "mexico"}),
+    "usa": (37.0902, -95.7129, "United States", "US", {"canada", "mexico"}),
+    "vietnam": (14.0583, 108.2772, "Vietnam", "VN", {"cambodia", "china", "laos"})
 }
 
 
@@ -540,6 +372,78 @@ def calculate_wordle_feedback(guess: str, secret: str) -> str:
     blocks = "".join(feedback)
     word_str = " ".join([f"`{c.upper()}`" for c in guess_chars])
     return f"{blocks}  {word_str}"
+
+
+# --- DIFFICULTY VOTING VIEW ---
+class DifficultyVoteView(discord.ui.View):
+    def __init__(self, creator_id: int, timeout: float = 15.0):
+        super().__init__(timeout=timeout)
+        self.creator_id = creator_id
+        self.votes = {"easy": set(), "medium": set(), "hard": set()}
+        self.selected_difficulty = "easy"
+        self.finished = False
+
+    def update_button_labels(self):
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                if child.custom_id == "vote_easy":
+                    child.label = f"Easy ({len(self.votes['easy'])})"
+                elif child.custom_id == "vote_medium":
+                    child.label = f"Medium ({len(self.votes['medium'])})"
+                elif child.custom_id == "vote_hard":
+                    child.label = f"Hard ({len(self.votes['hard'])})"
+
+    def determine_winner(self) -> str:
+        counts = {
+            "easy": len(self.votes["easy"]),
+            "medium": len(self.votes["medium"]),
+            "hard": len(self.votes["hard"]),
+        }
+        max_votes = max(counts.values())
+        if max_votes == 0:
+            return "easy"
+        
+        # In case of tie, prioritize easy -> medium -> hard
+        for diff in ["easy", "medium", "hard"]:
+            if counts[diff] == max_votes:
+                return diff
+        return "easy"
+
+    @discord.ui.button(label="Easy (0)", style=discord.ButtonStyle.success, custom_id="vote_easy")
+    async def easy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        uid = interaction.user.id
+        self.votes["easy"].add(uid)
+        self.votes["medium"].discard(uid)
+        self.votes["hard"].discard(uid)
+        self.update_button_labels()
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label="Medium (0)", style=discord.ButtonStyle.primary, custom_id="vote_medium")
+    async def medium_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        uid = interaction.user.id
+        self.votes["medium"].add(uid)
+        self.votes["easy"].discard(uid)
+        self.votes["hard"].discard(uid)
+        self.update_button_labels()
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label="Hard (0)", style=discord.ButtonStyle.danger, custom_id="vote_hard")
+    async def hard_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        uid = interaction.user.id
+        self.votes["hard"].add(uid)
+        self.votes["easy"].discard(uid)
+        self.votes["medium"].discard(uid)
+        self.update_button_labels()
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label="Start Game Now", style=discord.ButtonStyle.secondary, custom_id="start_now")
+    async def start_now_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if interaction.user.id != self.creator_id and interaction.user.id not in ADMIN_USER_IDS:
+            await interaction.response.send_message("❌ Only the game creator can force start the game!", ephemeral=True)
+            return
+        self.finished = True
+        self.stop()
+        await interaction.response.defer()
 
 
 async def process_code_creation(
@@ -807,25 +711,16 @@ async def setadminlogchannel_slash(interaction: discord.Interaction, channel: di
 
 
 # --- SLASH COMMANDS ---
-@bot.tree.command(name="guessthemysterycountry", description="Starts a mystery country guessing game!")
+@bot.tree.command(name="guessthemysterycountry", description="Starts a mystery country guessing game with difficulty voting!")
 @app_commands.describe(
-    difficulty="Select difficulty mode (Easy, Medium, or Hard)",
     country="Optional: Pick a specific mystery country/territory to guess (Leave empty for random)",
     role="Optional role reward",
     reward_text="Optional custom text description for the reward",
     required_role="Optional role required to guess in this game",
     channel="Target channel"
 )
-@app_commands.choices(
-    difficulty=[
-        app_commands.Choice(name="🟢 Easy (Country name, Distance & Direction)", value="easy"),
-        app_commands.Choice(name="🟡 Medium (Flag only, Distance & Direction)", value="medium"),
-        app_commands.Choice(name="🔴 Hard (Flag & Distance only)", value="hard")
-    ]
-)
 async def guessthemysterycountry_slash(
     interaction: discord.Interaction,
-    difficulty: app_commands.Choice[str],
     country: str | None = None,
     role: discord.Role | None = None,
     reward_text: str | None = None,
@@ -863,11 +758,38 @@ async def guessthemysterycountry_slash(
     else:
         chosen_key = random.choice(list(COUNTRY_DATA.keys()))
 
-    lat, lon, official_name, cca2 = COUNTRY_DATA[chosen_key]
+    country_entry = COUNTRY_DATA[chosen_key]
+    lat, lon, official_name, cca2 = country_entry[0], country_entry[1], country_entry[2], country_entry[3]
+    borders = country_entry[4] if len(country_entry) > 4 else set()
 
-    diff_value = difficulty.value
-    diff_label = "🟢 Easy" if diff_value == "easy" else ("🟡 Medium" if diff_value == "medium" else "🔴 Hard")
+    # Step 1: Send Voting Embed to Chat
+    vote_embed = discord.Embed(
+        title="🗳️ Vote for Difficulty Mode!",
+        description=(
+            f"**Game host:** {interaction.user.mention}\n\n"
+            "Click a button below to vote for the game difficulty:\n"
+            "• 🟢 **Easy:** Shows country name, distance & compass direction\n"
+            "• 🟡 **Medium:** Shows flag emoji, distance & compass direction\n"
+            "• 🔴 **Hard:** Shows flag emoji & distance only\n\n"
+            "⏱️ *Voting ends in 15 seconds!*"
+        ),
+        color=discord.Color.gold()
+    )
+    if hasattr(interaction.user, "display_avatar"):
+        vote_embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
+    vote_view = DifficultyVoteView(creator_id=interaction.user.id, timeout=15.0)
+    vote_message = await target_channel.send(embed=vote_embed, view=vote_view)
+
+    await interaction.followup.send(f"✅ Difficulty vote started in {target_channel.mention}!", ephemeral=True)
+
+    # Step 2: Wait for voting timeout or manual start
+    await vote_view.wait()
+
+    chosen_diff = vote_view.determine_winner()
+    diff_label = "🟢 Easy" if chosen_diff == "easy" else ("🟡 Medium" if chosen_diff == "medium" else "🔴 Hard")
+
+    # Step 3: Replace vote embed with active game embed
     reward_pieces = []
     if role:
         reward_pieces.append(role.mention)
@@ -878,26 +800,32 @@ async def guessthemysterycountry_slash(
     if required_role:
         reward_output += f"\n**Required Role:** {required_role.mention}"
 
-    embed = discord.Embed(
+    game_embed = discord.Embed(
         title="🌍 Guess The Mystery Country / Territory!",
         description=(
             f"**Created by:** {interaction.user.mention}\n"
-            f"**Difficulty:** {diff_label}{reward_output}\n\n"
+            f"**Difficulty Selected:** {diff_label}{reward_output}\n\n"
             "*No guesses yet!*"
         ),
         color=discord.Color.teal()
     )
     if hasattr(interaction.user, "display_avatar"):
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        game_embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
-    embed_msg = await target_channel.send(embed=embed)
+    try:
+        await vote_message.edit(embed=game_embed, view=None)
+        game_msg_id = vote_message.id
+    except Exception:
+        game_msg = await target_channel.send(embed=game_embed)
+        game_msg_id = game_msg.id
 
     active_codes[target_channel.id] = {
         "code": chosen_key,
         "accepted_answers": [chosen_key, official_name.lower()],
         "target_coords": (lat, lon),
         "target_display": official_name,
-        "difficulty": diff_value,
+        "target_borders": borders,
+        "difficulty": chosen_diff,
         "ready": True,
         "role_id": role.id if role else None,
         "reward_text": reward_text,
@@ -906,11 +834,9 @@ async def guessthemysterycountry_slash(
         "troll_target": None,
         "creator_id": interaction.user.id,
         "required_role_id": required_role.id if required_role else None,
-        "country_embed_id": embed_msg.id,
+        "country_embed_id": game_msg_id,
         "country_guesses": [],
     }
-
-    await interaction.followup.send(f"✅ Mystery country/territory challenge ({diff_label}) started in {target_channel.mention}!", ephemeral=True)
 
 
 @bot.tree.command(name="wordle", description="Creates a custom Wordle game challenge.")
@@ -1786,8 +1712,11 @@ async def on_message(message: discord.Message):
                     return
 
                 if msg_clean in COUNTRY_DATA:
-                    guessed_lat, guessed_lon, guessed_name, guessed_cca2 = COUNTRY_DATA[msg_clean]
+                    guessed_entry = COUNTRY_DATA[msg_clean]
+                    guessed_lat, guessed_lon, guessed_name, guessed_cca2 = guessed_entry[0], guessed_entry[1], guessed_entry[2], guessed_entry[3]
+                    
                     target_lat, target_lon = code_data["target_coords"]
+                    target_borders = code_data.get("target_borders", set())
                     difficulty = code_data.get("difficulty", "easy")
                     
                     dist_km = calculate_haversine_distance(guessed_lat, guessed_lon, target_lat, target_lon)
@@ -1795,18 +1724,22 @@ async def on_message(message: discord.Message):
                     flag_emoji = get_flag_emoji(guessed_cca2)
                     direction_str = calculate_bearing_direction(guessed_lat, guessed_lon, target_lat, target_lon)
                     
+                    # BORDER CHECK LOGIC
+                    is_bordering = (msg_clean in target_borders)
+                    feedback_str = "The mystery country is bordering this country!" if is_bordering else f"({temp_status})"
+
                     if dist_km == 0:
                         guess_entry = f"🎯 {flag_emoji} **{guessed_name}** — **0 km** (CORRECT!) [{message.author.mention}]"
                     else:
                         if difficulty == "easy":
                             # Easy: Shows country name, kilometers and direction
-                            guess_entry = f"{flag_emoji} **{guessed_name}** — **{dist_km:,} km** {direction_str} ({temp_status}) [{message.author.mention}]"
+                            guess_entry = f"{flag_emoji} **{guessed_name}** — **{dist_km:,} km** {direction_str} {feedback_str} [{message.author.mention}]"
                         elif difficulty == "medium":
                             # Medium: Hides country name, only shows flag. Gives kilometers and direction
-                            guess_entry = f"{flag_emoji} — **{dist_km:,} km** {direction_str} ({temp_status}) [{message.author.mention}]"
+                            guess_entry = f"{flag_emoji} — **{dist_km:,} km** {direction_str} {feedback_str} [{message.author.mention}]"
                         else:
                             # Hard: Hides country name and direction, shows flag and kilometers
-                            guess_entry = f"{flag_emoji} — **{dist_km:,} km** ({temp_status}) [{message.author.mention}]"
+                            guess_entry = f"{flag_emoji} — **{dist_km:,} km** {feedback_str} [{message.author.mention}]"
                     
                     code_data["country_guesses"].append(guess_entry)
 
