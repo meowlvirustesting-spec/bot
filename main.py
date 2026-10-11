@@ -809,14 +809,23 @@ async def setadminlogchannel_slash(interaction: discord.Interaction, channel: di
 # --- SLASH COMMANDS ---
 @bot.tree.command(name="guessthemysterycountry", description="Starts a mystery country guessing game!")
 @app_commands.describe(
+    difficulty="Select difficulty mode (Easy, Medium, or Hard)",
     country="Optional: Pick a specific mystery country/territory to guess (Leave empty for random)",
     role="Optional role reward",
     reward_text="Optional custom text description for the reward",
     required_role="Optional role required to guess in this game",
     channel="Target channel"
 )
+@app_commands.choices(
+    difficulty=[
+        app_commands.Choice(name="🟢 Easy (Country name, Distance & Direction)", value="easy"),
+        app_commands.Choice(name="🟡 Medium (Flag only, Distance & Direction)", value="medium"),
+        app_commands.Choice(name="🔴 Hard (Distance only)", value="hard")
+    ]
+)
 async def guessthemysterycountry_slash(
     interaction: discord.Interaction,
+    difficulty: app_commands.Choice[str],
     country: str | None = None,
     role: discord.Role | None = None,
     reward_text: str | None = None,
@@ -856,6 +865,9 @@ async def guessthemysterycountry_slash(
 
     lat, lon, official_name, cca2 = COUNTRY_DATA[chosen_key]
 
+    diff_value = difficulty.value
+    diff_label = "🟢 Easy" if diff_value == "easy" else ("🟡 Medium" if diff_value == "medium" else "🔴 Hard")
+
     reward_pieces = []
     if role:
         reward_pieces.append(role.mention)
@@ -869,7 +881,8 @@ async def guessthemysterycountry_slash(
     embed = discord.Embed(
         title="🌍 Guess The Mystery Country / Territory!",
         description=(
-            f"**Created by:** {interaction.user.mention}{reward_output}\n\n"
+            f"**Created by:** {interaction.user.mention}\n"
+            f"**Difficulty:** {diff_label}{reward_output}\n\n"
             "*No guesses yet!*"
         ),
         color=discord.Color.teal()
@@ -884,6 +897,7 @@ async def guessthemysterycountry_slash(
         "accepted_answers": [chosen_key, official_name.lower()],
         "target_coords": (lat, lon),
         "target_display": official_name,
+        "difficulty": diff_value,
         "ready": True,
         "role_id": role.id if role else None,
         "reward_text": reward_text,
@@ -896,7 +910,7 @@ async def guessthemysterycountry_slash(
         "country_guesses": [],
     }
 
-    await interaction.followup.send(f"✅ Mystery country/territory challenge started in {target_channel.mention}!", ephemeral=True)
+    await interaction.followup.send(f"✅ Mystery country/territory challenge ({diff_label}) started in {target_channel.mention}!", ephemeral=True)
 
 
 @bot.tree.command(name="wordle", description="Creates a custom Wordle game challenge.")
@@ -1774,6 +1788,7 @@ async def on_message(message: discord.Message):
                 if msg_clean in COUNTRY_DATA:
                     guessed_lat, guessed_lon, guessed_name, guessed_cca2 = COUNTRY_DATA[msg_clean]
                     target_lat, target_lon = code_data["target_coords"]
+                    difficulty = code_data.get("difficulty", "easy")
                     
                     dist_km = calculate_haversine_distance(guessed_lat, guessed_lon, target_lat, target_lon)
                     temp_status, heat_emoji = get_temperature_feedback(dist_km)
@@ -1783,7 +1798,15 @@ async def on_message(message: discord.Message):
                     if dist_km == 0:
                         guess_entry = f"🎯 {flag_emoji} **{guessed_name}** — **0 km** (CORRECT!) [{message.author.mention}]"
                     else:
-                        guess_entry = f"{flag_emoji} **{guessed_name}** — **{dist_km:,} km** {direction_str} ({temp_status}) [{message.author.mention}]"
+                        if difficulty == "easy":
+                            # Easy: Shows country name, kilometers and direction
+                            guess_entry = f"{flag_emoji} **{guessed_name}** — **{dist_km:,} km** {direction_str} ({temp_status}) [{message.author.mention}]"
+                        elif difficulty == "medium":
+                            # Medium: Hides country name, only shows flag. Gives kilometers and direction
+                            guess_entry = f"{flag_emoji} — **{dist_km:,} km** {direction_str} ({temp_status}) [{message.author.mention}]"
+                        else:
+                            # Hard: Hides country name and direction, only shows kilometers
+                            guess_entry = f"📍 **{dist_km:,} km** ({temp_status}) [{message.author.mention}]"
                     
                     code_data["country_guesses"].append(guess_entry)
 
@@ -1793,6 +1816,8 @@ async def on_message(message: discord.Message):
                             embed_msg = await message.channel.fetch_message(embed_id)
                             creator_user = bot.get_user(creator_id)
                             creator_mention = creator_user.mention if creator_user else "Unknown"
+
+                            diff_label = "🟢 Easy" if difficulty == "easy" else ("🟡 Medium" if difficulty == "medium" else "🔴 Hard")
 
                             role_id = code_data.get("role_id")
                             custom_reward_text = code_data.get("reward_text")
@@ -1816,7 +1841,8 @@ async def on_message(message: discord.Message):
                             new_embed = discord.Embed(
                                 title="🌍 Guess The Mystery Country / Territory!",
                                 description=(
-                                    f"**Created by:** {creator_mention}{reward_out}\n\n"
+                                    f"**Created by:** {creator_mention}\n"
+                                    f"**Difficulty:** {diff_label}{reward_out}\n\n"
                                     f"{guesses_formatted}"
                                 ),
                                 color=discord.Color.teal(),
