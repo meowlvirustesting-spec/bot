@@ -138,9 +138,9 @@ async def log_admin_action(executor: discord.User | discord.Member, action_title
 
 
 # --- COMPREHENSIVE WORLD COUNTRY & TERRITORY DATASET ---
-# Format: (lat, lon, official_name, iso_code, [set of bordering country keys])
+# Format: (lat, lon, official_name, iso_code, border_set)
 COUNTRY_DATA = {
-    # Sample subset showing border relationships for demonstration & accuracy
+    # --- COUNTRIES ---
     "afghanistan": (33.93911, 67.709953, "Afghanistan", "AF", {"china", "iran", "pakistan", "tajikistan", "turkmenistan", "uzbekistan"}),
     "albania": (41.1533, 20.1683, "Albania", "AL", {"greece", "kosovo", "montenegro", "north macedonia"}),
     "algeria": (28.0339, 1.6596, "Algeria", "DZ", {"libya", "mali", "mauritania", "morocco", "niger", "tunisia", "western sahara"}),
@@ -193,7 +193,9 @@ COUNTRY_DATA = {
     "kazakhstan": (48.0196, 66.9237, "Kazakhstan", "KZ", {"china", "kyrgyzstan", "russia", "turkmenistan", "uzbekistan"}),
     "kenya": (-0.0236, 37.9062, "Kenya", "KE", {"ethiopia", "somalia", "south sudan", "tanzania", "uganda"}),
     "kosovo": (42.6026, 20.9030, "Kosovo", "XK", {"albania", "montenegro", "north macedonia", "serbia"}),
+    "lebanon": (33.8547, 35.8623, "Lebanon", "LB", {"israel", "syria"}),
     "libya": (26.3351, 17.2283, "Libya", "LY", {"algeria", "chad", "egypt", "niger", "sudan", "tunisia"}),
+    "malaysia": (4.2105, 101.9758, "Malaysia", "MY", {"brunei", "indonesia", "thailand"}),
     "mexico": (23.6345, -102.5528, "Mexico", "MX", {"belize", "guatemala", "united states", "usa"}),
     "morocco": (31.7917, -7.0926, "Morocco", "MA", {"algeria", "spain", "western sahara"}),
     "niger": (17.6078, 8.0817, "Niger", "NE", {"algeria", "benin", "burkina faso", "chad", "libya", "mali", "nigeria"}),
@@ -219,7 +221,64 @@ COUNTRY_DATA = {
     "uk": (55.3781, -3.436, "United Kingdom", "GB", {"ireland"}),
     "united states": (37.0902, -95.7129, "United States", "US", {"canada", "mexico"}),
     "usa": (37.0902, -95.7129, "United States", "US", {"canada", "mexico"}),
-    "vietnam": (14.0583, 108.2772, "Vietnam", "VN", {"cambodia", "china", "laos"})
+    "vietnam": (14.0583, 108.2772, "Vietnam", "VN", {"cambodia", "china", "laos"}),
+
+    # --- TERRITORIES & DEPENDENCIES (WITH ALIASES & BORDER SETS) ---
+    "american samoa": (-14.271, -170.1322, "American Samoa", "AS", set()),
+    "anguilla": (18.2206, -63.0686, "Anguilla", "AI", set()),
+    "aruba": (12.5211, -69.9683, "Aruba", "AW", set()),
+    "bermuda": (32.3078, -64.7505, "Bermuda", "BM", set()),
+    "bonaire": (12.2019, -68.2624, "Bonaire", "BQ", set()),
+    "british virgin islands": (18.4207, -64.6399, "British Virgin Islands", "VG", set()),
+    "bvi": (18.4207, -64.6399, "British Virgin Islands", "VG", set()),
+    "cayman islands": (19.3133, -81.2546, "Cayman Islands", "KY", set()),
+    "cook islands": (-21.2367, -159.7777, "Cook Islands", "CK", set()),
+    "curacao": (12.1696, -68.99, "Curaçao", "CW", set()),
+    "curaçao": (12.1696, -68.99, "Curaçao", "CW", set()),
+    "falkland islands": (-51.7963, -59.5236, "Falkland Islands", "FK", set()),
+    "faroe islands": (61.8926, -6.9118, "Faroe Islands", "FO", set()),
+    "french guiana": (3.9339, -53.1258, "French Guiana", "GF", {"brazil", "suriname"}),
+    "french polynesia": (-17.6797, -149.4068, "French Polynesia", "PF", set()),
+    "gibraltar": (36.1408, -5.3536, "Gibraltar", "GI", {"spain"}),
+    "greenland": (71.7069, -42.6043, "Greenland", "GL", set()),
+    "guadeloupe": (16.265, -61.551, "Guadeloupe", "GP", set()),
+    "guam": (13.4443, 144.7937, "Guam", "GU", set()),
+    "guernsey": (49.4657, -2.5853, "Guernsey", "GG", set()),
+    "hong kong": (22.3193, 114.1694, "Hong Kong", "HK", {"china"}),
+    "isle of man": (54.2361, -4.5481, "Isle of Man", "IM", set()),
+    "jersey": (49.2144, -2.1312, "Jersey", "JE", set()),
+    "macau": (22.1987, 113.5439, "Macau", "MO", {"china"}),
+    "martinique": (14.6415, -61.0242, "Martinique", "MQ", set()),
+    "mayotte": (-12.8275, 45.1662, "Mayotte", "YT", set()),
+    "montserrat": (16.7425, -62.1874, "Montserrat", "MS", set()),
+    "new caledonia": (-20.9043, 165.618, "New Caledonia", "NC", set()),
+    "niue": (-19.0544, -169.8672, "Niue", "NU", set()),
+    "norfolk island": (-29.0408, 167.9547, "Norfolk Island", "NF", set()),
+    "northern mariana islands": (15.0979, 145.6739, "Northern Mariana Islands", "MP", set()),
+    "puerto rico": (18.2208, -66.5901, "Puerto Rico", "PR", set()),
+    "reunion": (-21.1151, 55.5364, "Réunion", "RE", set()),
+    "saint barthelemy": (17.9, -62.8333, "Saint Barthélemy", "BL", set()),
+    "st barthelemy": (17.9, -62.8333, "Saint Barthélemy", "BL", set()),
+    "saint helena": (-15.965, -5.7089, "Saint Helena", "SH", set()),
+    "st helena": (-15.965, -5.7089, "Saint Helena", "SH", set()),
+    "saint martin": (18.0708, -63.0501, "Saint Martin", "MF", {"sint maarten"}),
+    "st martin": (18.0708, -63.0501, "Saint Martin", "MF", {"sint maarten"}),
+    "saint pierre and miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set()),
+    "saint pierre & miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set()),
+    "st pierre and miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set()),
+    "st. pierre and miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set()),
+    "st pierre & miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set()),
+    "st. pierre & miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set()),
+    "spm": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set()),
+    "sint maarten": (18.0425, -63.0548, "Sint Maarten", "SX", {"saint martin"}),
+    "tokelau": (-9.2002, -171.8484, "Tokelau", "TK", set()),
+    "turks and caicos islands": (21.694, -71.7979, "Turks and Caicos Islands", "TC", set()),
+    "turks and caicos": (21.694, -71.7979, "Turks and Caicos Islands", "TC", set()),
+    "us virgin islands": (18.3358, -64.8963, "U.S. Virgin Islands", "VI", set()),
+    "u.s. virgin islands": (18.3358, -64.8963, "U.S. Virgin Islands", "VI", set()),
+    "usvi": (18.3358, -64.8963, "U.S. Virgin Islands", "VI", set()),
+    "wallis and futuna": (-13.7651, -177.1561, "Wallis and Futuna", "WF", set()),
+    "western sahara": (24.2155, -12.8858, "Western Sahara", "EH", {"algeria", "mauritania", "morocco"})
 }
 
 
@@ -1713,7 +1772,10 @@ async def on_message(message: discord.Message):
 
                 if msg_clean in COUNTRY_DATA:
                     guessed_entry = COUNTRY_DATA[msg_clean]
-                    guessed_lat, guessed_lon, guessed_name, guessed_cca2 = guessed_entry[0], guessed_entry[1], guessed_entry[2], guessed_entry[3]
+                    guessed_lat = guessed_entry[0]
+                    guessed_lon = guessed_entry[1]
+                    guessed_name = guessed_entry[2]
+                    guessed_cca2 = guessed_entry[3]
                     
                     target_lat, target_lon = code_data["target_coords"]
                     target_borders = code_data.get("target_borders", set())
