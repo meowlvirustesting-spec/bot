@@ -820,7 +820,7 @@ async def setadminlogchannel_slash(interaction: discord.Interaction, channel: di
     difficulty=[
         app_commands.Choice(name="🟢 Easy (Country name, Distance & Direction)", value="easy"),
         app_commands.Choice(name="🟡 Medium (Flag only, Distance & Direction)", value="medium"),
-        app_commands.Choice(name="🔴 Hard (Distance only)", value="hard")
+        app_commands.Choice(name="🔴 Hard (Flag & Distance only)", value="hard")
     ]
 )
 async def guessthemysterycountry_slash(
@@ -1805,8 +1805,8 @@ async def on_message(message: discord.Message):
                             # Medium: Hides country name, only shows flag. Gives kilometers and direction
                             guess_entry = f"{flag_emoji} — **{dist_km:,} km** {direction_str} ({temp_status}) [{message.author.mention}]"
                         else:
-                            # Hard: Hides country name and direction, only shows kilometers
-                            guess_entry = f"📍 **{dist_km:,} km** ({temp_status}) [{message.author.mention}]"
+                            # Hard: Hides country name and direction, shows flag and kilometers
+                            guess_entry = f"{flag_emoji} — **{dist_km:,} km** ({temp_status}) [{message.author.mention}]"
                     
                     code_data["country_guesses"].append(guess_entry)
 
