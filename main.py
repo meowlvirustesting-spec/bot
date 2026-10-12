@@ -138,278 +138,273 @@ async def log_admin_action(executor: discord.User | discord.Member, action_title
 
 
 # --- FULL WORLD COUNTRY & TERRITORY DATASET ---
-# Format: (lat, lon, official_name, iso_code, border_set)
-COUNTRY_DATA = {}
-
-def add_entry(key, lat, lon, official_name, iso_code, borders=None):
-    # Determine ISO code automatically from official country name mapping if needed, or pass explicitly
-    # Here we define a quick helper or look it up. Let's map ISO codes inline:
-    pass
-
-# To make it clean and complete, let's use a robust builder dictionary
-# Format: "key": (lat, lon, official_name, iso_code, {borders})
+# Format: (lat, lon, official_name, iso_code, border_set, region)
 COUNTRY_DATA = {
-    "afghanistan": (33.9391, 67.7100, "Afghanistan", "AF", {"china", "iran", "pakistan", "tajikistan", "turkmenistan", "uzbekistan"}),
-    "albania": (41.1533, 20.1683, "Albania", "AL", {"greece", "kosovo", "montenegro", "north macedonia"}),
-    "algeria": (28.0339, 1.6596, "Algeria", "DZ", {"libya", "mali", "mauritania", "morocco", "niger", "tunisia", "western sahara"}),
-    "andorra": (42.5063, 1.5218, "Andorra", "AD", {"france", "spain"}),
-    "angola": (-11.2027, 17.8739, "Angola", "AO", {"congo", "democratic republic of the congo", "namibia", "zambia"}),
-    "antigua and barbuda": (17.0608, -61.7964, "Antigua and Barbuda", "AG", set()),
-    "argentina": (-38.4161, -63.6167, "Argentina", "AR", {"bolivia", "brazil", "chile", "paraguay", "uruguay"}),
-    "armenia": (40.0691, 45.0382, "Armenia", "AM", {"azerbaijan", "georgia", "iran", "turkey"}),
-    "australia": (-25.2744, 133.7751, "Australia", "AU", set()),
-    "austria": (47.5162, 14.5501, "Austria", "AT", {"czechia", "germany", "hungary", "italy", "liechtenstein", "slovakia", "slovenia", "switzerland"}),
-    "azerbaijan": (40.1431, 47.5769, "Azerbaijan", "AZ", {"armenia", "georgia", "iran", "russia", "turkey"}),
-    "bahamas": (25.0343, -77.3963, "Bahamas", "BS", set()),
-    "bahrain": (26.0667, 50.5577, "Bahrain", "BH", set()),
-    "bangladesh": (23.6850, 90.3563, "Bangladesh", "BD", {"india", "myanmar"}),
-    "barbados": (13.1939, -59.5432, "Barbados", "BB", set()),
-    "belarus": (53.7098, 27.9534, "Belarus", "BY", {"latvia", "lithuania", "poland", "russia", "ukraine"}),
-    "belgium": (50.5039, 4.4699, "Belgium", "BE", {"france", "germany", "luxembourg", "netherlands"}),
-    "belize": (17.1899, -88.4976, "Belize", "BZ", {"guatemala", "mexico"}),
-    "benin": (9.3077, 2.3158, "Benin", "BJ", {"burkina faso", "niger", "nigeria", "togo"}),
-    "bhutan": (27.5142, 90.4336, "Bhutan", "BT", {"china", "india"}),
-    "bolivia": (-16.2902, -63.5887, "Bolivia", "BO", {"argentina", "brazil", "chile", "paraguay", "peru"}),
-    "bosnia and herzegovina": (43.9159, 17.6791, "Bosnia and Herzegovina", "BA", {"croatia", "montenegro", "serbia"}),
-    "botswana": (-22.3285, 24.6849, "Botswana", "BW", {"namibia", "south africa", "zambia", "zimbabwe"}),
-    "brazil": (-14.2350, -51.9253, "Brazil", "BR", {"argentina", "bolivia", "colombia", "french guiana", "guyana", "paraguay", "peru", "suriname", "uruguay", "venezuela"}),
-    "brunei": (4.5353, 114.7277, "Brunei", "BN", {"malaysia"}),
-    "bulgaria": (42.7339, 25.4858, "Bulgaria", "BG", {"greece", "north macedonia", "romania", "serbia", "turkey"}),
-    "burkina faso": (12.2383, -1.5616, "Burkina Faso", "BF", {"benin", "cote d'ivoire", "ghana", "mali", "niger", "togo"}),
-    "burundi": (-3.3731, 29.9189, "Burundi", "BI", {"democratic republic of the congo", "rwanda", "tanzania"}),
-    "cabo verde": (16.0020, -24.0131, "Cabo Verde", "CV", set()),
-    "cambodia": (12.5657, 104.9910, "Cambodia", "KH", {"laos", "thailand", "vietnam"}),
-    "cameroon": (3.8480, 11.5021, "Cameroon", "CM", {"central african republic", "chad", "congo", "equatorial guinea", "gabon", "nigeria"}),
-    "canada": (56.1304, -106.3468, "Canada", "CA", {"united states", "usa"}),
-    "central african republic": (6.6111, 20.9394, "Central African Republic", "CF", {"cameroon", "chad", "congo", "democratic republic of the congo", "south sudan", "sudan"}),
-    "chad": (15.4542, 18.7322, "Chad", "TD", {"cameroon", "central african republic", "libya", "niger", "nigeria", "sudan"}),
-    "chile": (-35.6751, -71.5430, "Chile", "CL", {"argentina", "bolivia", "peru"}),
-    "china": (35.8617, 104.1954, "China", "CN", {"afghanistan", "bhutan", "india", "kazakhstan", "kyrgyzstan", "laos", "mongolia", "myanmar", "nepal", "north korea", "pakistan", "russia", "tajikistan", "vietnam"}),
-    "colombia": (4.5709, -74.2973, "Colombia", "CO", {"brazil", "ecuador", "panama", "peru", "venezuela"}),
-    "comoros": (-11.8750, 43.8722, "Comoros", "KM", set()),
-    "congo": (-0.2280, 15.8277, "Congo", "CG", {"angola", "cameroon", "central african republic", "democratic republic of the congo", "gabon"}),
-    "democratic republic of the congo": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD", {"angola", "central african republic", "congo", "rwanda", "south sudan", "tanzania", "uganda", "zambia"}),
-    "costa rica": (10.4806, -83.5858, "Costa Rica", "CR", {"nicaragua", "panama"}),
-    "cote d'ivoire": (7.5400, -5.5471, "Côte d'Ivoire", "CI", {"burkina faso", "ghana", "guinea", "liberia", "mali"}),
-    "croatia": (45.1000, 15.2000, "Croatia", "HR", {"bosnia and herzegovina", "hungary", "montenegro", "serbia", "slovenia"}),
-    "cuba": (21.5218, -77.7812, "Cuba", "CU", set()),
-    "cyprus": (35.1264, 33.4299, "Cyprus", "CY", set()),
-    "czechia": (49.8175, 15.4730, "Czechia", "CZ", {"austria", "germany", "poland", "slovakia"}),
-    "denmark": (56.2639, 9.5018, "Denmark", "DK", {"germany"}),
-    "djibouti": (11.8251, 42.5903, "Djibouti", "DJ", {"eritrea", "ethiopia", "somalia"}),
-    "dominica": (15.4150, -61.3710, "Dominica", "DM", set()),
-    "dominican republic": (18.7357, -70.1627, "Dominican Republic", "DO", {"haiti"}),
-    "ecuador": (-1.8312, -78.1834, "Ecuador", "EC", {"colombia", "peru"}),
-    "egypt": (26.8206, 30.8025, "Egypt", "EG", {"israel", "libya", "palestine", "sudan"}),
-    "el salvador": (13.7942, -88.8965, "El Salvador", "SV", {"guatemala", "honduras"}),
-    "equatorial guinea": (1.6508, 10.2679, "Equatorial Guinea", "GQ", {"cameroon", "gabon"}),
-    "eritrea": (15.1794, 39.7823, "Eritrea", "ER", {"djibouti", "ethiopia", "sudan"}),
-    "estonia": (58.5953, 25.0136, "Estonia", "EE", {"latvia", "russia"}),
-    "eswatini": (-26.5225, 31.4659, "Eswatini", "SZ", {"mozambique", "south africa"}),
-    "ethiopia": (9.1450, 40.4897, "Ethiopia", "ET", {"djibouti", "eritrea", "kenya", "somalia", "south sudan", "sudan"}),
-    "fiji": (-17.7134, 178.0650, "Fiji", "FJ", set()),
-    "finland": (61.9241, 25.7482, "Finland", "FI", {"norway", "russia", "sweden"}),
-    "france": (46.2276, 2.2137, "France", "FR", {"andorra", "belgium", "germany", "italy", "luxembourg", "monaco", "spain", "switzerland"}),
-    "gabon": (-0.8037, 11.6094, "Gabon", "GA", {"cameroon", "congo", "equatorial guinea"}),
-    "gambia": (13.4432, -15.3101, "Gambia", "GM", {"senegal"}),
-    "georgia": (42.3154, 43.3569, "Georgia", "GE", {"armenia", "azerbaijan", "russia", "turkey"}),
-    "germany": (51.1657, 10.4515, "Germany", "DE", {"austria", "belgium", "czechia", "denmark", "france", "luxembourg", "netherlands", "poland", "switzerland"}),
-    "ghana": (7.9465, -1.0232, "Ghana", "GH", {"burkina faso", "cote d'ivoire", "togo"}),
-    "greece": (39.0742, 21.8243, "Greece", "GR", {"albania", "bulgaria", "north macedonia", "turkey"}),
-    "grenada": (12.1165, -61.6790, "Grenada", "GD", set()),
-    "guatemala": (15.7835, -90.2308, "Guatemala", "GT", {"belize", "el salvador", "honduras", "mexico"}),
-    "guinea": (9.9456, -9.6966, "Guinea", "GN", {"cote d'ivoire", "guinea-bissau", "liberia", "mali", "senegal", "sierra leone"}),
-    "guinea-bissau": (11.8037, -15.1804, "Guinea-Bissau", "GW", {"guinea", "senegal"}),
-    "guyana": (4.8604, -58.9302, "Guyana", "GY", {"brazil", "suriname", "venezuela"}),
-    "haiti": (18.9712, -72.2852, "Haiti", "HT", {"dominican republic"}),
-    "honduras": (15.2000, -86.2419, "Honduras", "HN", {"el salvador", "guatemala", "nicaragua"}),
-    "hungary": (47.1625, 19.5033, "Hungary", "HU", {"austria", "croatia", "romania", "serbia", "slovakia", "slovenia", "ukraine"}),
-    "iceland": (64.9631, -19.0208, "Iceland", "IS", set()),
-    "india": (20.5937, 78.9629, "India", "IN", {"bangladesh", "bhutan", "china", "myanmar", "nepal", "pakistan"}),
-    "indonesia": (-0.7893, 113.9213, "Indonesia", "ID", {"malaysia", "papua new guinea", "timor-leste"}),
-    "iran": (32.4279, 53.6880, "Iran", "IR", {"afghanistan", "armenia", "azerbaijan", "iraq", "pakistan", "turkey", "turkmenistan"}),
-    "iraq": (33.2232, 43.6793, "Iraq", "IQ", {"iran", "jordan", "kuwait", "saudi arabia", "syria", "turkey"}),
-    "ireland": (53.1424, -7.6921, "Ireland", "IE", {"united kingdom", "uk"}),
-    "israel": (31.0461, 34.8516, "Israel", "IL", {"egypt", "jordan", "lebanon", "palestine", "syria"}),
-    "italy": (41.8719, 12.5674, "Italy", "IT", {"austria", "france", "san marino", "slovenia", "switzerland", "vatican city"}),
-    "jamaica": (18.1096, -77.2975, "Jamaica", "JM", set()),
-    "japan": (36.2048, 138.2529, "Japan", "JP", set()),
-    "jordan": (30.5852, 36.2384, "Jordan", "JO", {"iraq", "israel", "palestine", "saudi arabia", "syria"}),
-    "kazakhstan": (48.0196, 66.9237, "Kazakhstan", "KZ", {"china", "kyrgyzstan", "russia", "turkmenistan", "uzbekistan"}),
-    "kenya": (-0.0236, 37.9062, "Kenya", "KE", {"ethiopia", "somalia", "south sudan", "tanzania", "uganda"}),
-    "kiribati": (-3.3704, -168.7340, "Kiribati", "KI", set()),
-    "kosovo": (42.6026, 20.9030, "Kosovo", "XK", {"albania", "montenegro", "north macedonia", "serbia"}),
-    "kuwait": (29.3117, 47.4818, "Kuwait", "KW", {"iraq", "saudi arabia"}),
-    "kyrgyzstan": (41.2044, 74.7661, "Kyrgyzstan", "KG", {"china", "kazakhstan", "tajikistan", "uzbekistan"}),
-    "laos": (19.8563, 102.4955, "Laos", "LA", {"cambodia", "china", "myanmar", "thailand", "vietnam"}),
-    "latvia": (56.8796, 24.6032, "Latvia", "LV", {"belarus", "estonia", "lithuania", "russia"}),
-    "lebanon": (33.8547, 35.8623, "Lebanon", "LB", {"israel", "syria"}),
-    "lesotho": (-29.6100, 28.2336, "Lesotho", "LS", {"south africa"}),
-    "liberia": (6.4281, -9.4295, "Liberia", "LR", {"cote d'ivoire", "guinea", "sierra leone"}),
-    "libya": (26.3351, 17.2283, "Libya", "LY", {"algeria", "chad", "egypt", "niger", "sudan", "tunisia"}),
-    "liechtenstein": (47.1660, 9.5554, "Liechtenstein", "LI", {"austria", "switzerland"}),
-    "lithuania": (55.1694, 23.8813, "Lithuania", "LT", {"belarus", "latvia", "poland", "russia"}),
-    "luxembourg": (49.8153, 6.1296, "Luxembourg", "LU", {"belgium", "france", "germany"}),
-    "madagascar": (-18.7669, 46.8691, "Madagascar", "MG", set()),
-    "malawi": (-13.2543, 34.3015, "Malawi", "MW", {"mozambique", "tanzania", "zambia"}),
-    "malaysia": (4.2105, 101.9758, "Malaysia", "MY", {"brunei", "indonesia", "thailand"}),
-    "maldives": (3.2028, 73.2207, "Maldives", "MV", set()),
-    "mali": (17.5707, -3.9962, "Mali", "ML", {"algeria", "burkina faso", "cote d'ivoire", "guinea", "mauritania", "niger", "senegal"}),
-    "malta": (35.9375, 14.3754, "Malta", "MT", set()),
-    "marshall islands": (7.1315, 171.1845, "Marshall Islands", "MH", set()),
-    "mauritania": (21.0079, -10.9408, "Mauritania", "MR", {"algeria", "mali", "senegal", "western sahara"}),
-    "mauritius": (-20.3484, 57.5522, "Mauritius", "MU", set()),
-    "mexico": (23.6345, -102.5528, "Mexico", "MX", {"belize", "guatemala", "united states", "usa"}),
-    "micronesia": (7.4256, 150.5508, "Micronesia", "FM", set()),
-    "moldova": (47.4116, 28.3699, "Moldova", "MD", {"romania", "ukraine"}),
-    "monaco": (43.7384, 7.4246, "Monaco", "MC", {"france"}),
-    "mongolia": (46.8625, 103.8467, "Mongolia", "MN", {"china", "russia"}),
-    "montenegro": (42.7087, 19.3744, "Montenegro", "ME", {"albania", "bosnia and herzegovina", "kosovo", "serbia"}),
-    "morocco": (31.7917, -7.0926, "Morocco", "MA", {"algeria", "spain", "western sahara"}),
-    "mozambique": (-18.6657, 35.5296, "Mozambique", "MZ", {"eswatini", "malawi", "south africa", "tanzania", "zambia", "zimbabwe"}),
-    "myanmar": (21.9162, 95.9560, "Myanmar", "MM", {"bangladesh", "china", "india", "laos", "thailand"}),
-    "namibia": (-22.9576, 18.4904, "Namibia", "NA", {"angola", "botswana", "south africa", "zambia"}),
-    "nauru": (-0.5228, 166.9315, "Nauru", "NR", set()),
-    "nepal": (28.3949, 84.1240, "Nepal", "NP", {"china", "india"}),
-    "netherlands": (52.1326, 5.2913, "Netherlands", "NL", {"belgium", "germany"}),
-    "new zealand": (-40.9006, 174.8860, "New Zealand", "NZ", set()),
-    "nicaragua": (12.8654, -85.2072, "Nicaragua", "NI", {"costa rica", "honduras"}),
-    "niger": (17.6078, 8.0817, "Niger", "NE", {"algeria", "benin", "burkina faso", "chad", "libya", "mali", "nigeria"}),
-    "nigeria": (9.0820, 8.6753, "Nigeria", "NG", {"benin", "cameroon", "chad", "niger"}),
-    "north korea": (40.3399, 127.5101, "North Korea", "KP", {"china", "russia", "south korea"}),
-    "north macedonia": (41.6086, 21.7453, "North Macedonia", "MK", {"albania", "bulgaria", "greece", "kosovo", "serbia"}),
-    "norway": (60.4720, 8.4689, "Norway", "NO", {"finland", "russia", "sweden"}),
-    "oman": (21.5126, 55.9232, "Oman", "OM", {"saudi arabia", "united arab emirates", "yemen"}),
-    "pakistan": (30.3753, 69.3451, "Pakistan", "PK", {"afghanistan", "china", "india", "iran"}),
-    "palau": (7.5150, 134.5825, "Palau", "PW", set()),
-    "palestine": (31.9522, 35.2332, "Palestine", "PS", {"egypt", "israel", "jordan"}),
-    "panama": (8.5380, -80.7821, "Panama", "PA", {"colombia", "costa rica"}),
-    "papua new guinea": (-6.3149, 143.9555, "Papua New Guinea", "PG", {"indonesia"}),
-    "paraguay": (-23.4425, -58.4438, "Paraguay", "PY", {"argentina", "bolivia", "brazil"}),
-    "peru": (-9.1899, -75.0152, "Peru", "PE", {"bolivia", "brazil", "chile", "colombia", "ecuador"}),
-    "philippines": (12.8797, 121.7740, "Philippines", "PH", set()),
-    "poland": (51.9194, 19.1451, "Poland", "PL", {"belarus", "czechia", "germany", "lithuania", "russia", "slovakia", "ukraine"}),
-    "portugal": (39.3999, -8.2245, "Portugal", "PT", {"spain"}),
-    "qatar": (25.3548, 51.1839, "Qatar", "QA", {"saudi arabia"}),
-    "romania": (45.9432, 24.9668, "Romania", "RO", {"bulgaria", "hungary", "moldova", "serbia", "ukraine"}),
-    "russia": (61.5240, 105.3188, "Russia", "RU", {"azerbaijan", "belarus", "china", "estonia", "finland", "georgia", "kazakhstan", "latvia", "lithuania", "mongolia", "north korea", "norway", "poland", "ukraine"}),
-    "rwanda": (-1.9403, 29.8739, "Rwanda", "RW", {"burundi", "democratic republic of the congo", "tanzania", "uganda"}),
-    "saint kitts and nevis": (17.3578, -62.7829, "Saint Kitts and Nevis", "KN", set()),
-    "saint lucia": (13.9094, -60.9789, "Saint Lucia", "LC", set()),
-    "saint vincent and the grenadines": (12.9843, -61.2872, "Saint Vincent and the Grenadines", "VC", set()),
-    "samoa": (-13.7590, -172.1046, "Samoa", "WS", set()),
-    "san marino": (43.9424, 12.4578, "San Marino", "SM", {"italy"}),
-    "sao tome and principe": (0.1864, 6.6131, "Sao Tome and Principe", "ST", set()),
-    "saudi arabia": (23.8859, 45.0792, "Saudi Arabia", "SA", {"iraq", "jordan", "kuwait", "oman", "qatar", "united arab emirates", "yemen"}),
-    "senegal": (14.4974, -14.4524, "Senegal", "SN", {"gambia", "guinea", "guinea-bissau", "mauritania", "mali"}),
-    "serbia": (44.0165, 21.0059, "Serbia", "RS", {"bosnia and herzegovina", "bulgaria", "croatia", "hungary", "kosovo", "montenegro", "north macedonia", "romania"}),
-    "seychelles": (-4.6796, 55.4920, "Seychelles", "SC", set()),
-    "sierra leone": (8.4606, -11.7799, "Sierra Leone", "SL", {"guinea", "liberia"}),
-    "singapore": (1.3521, 103.8198, "Singapore", "SG", set()),
-    "slovakia": (48.6690, 19.6990, "Slovakia", "SK", {"austria", "czechia", "hungary", "poland", "ukraine"}),
-    "slovenia": (46.1512, 14.9955, "Slovenia", "SI", {"austria", "croatia", "italy", "hungary"}),
-    "solomon islands": (-9.6457, 160.1562, "Solomon Islands", "SB", set()),
-    "somalia": (5.1521, 46.1996, "Somalia", "SO", {"djibouti", "ethiopia", "kenya"}),
-    "south africa": (-30.5595, 22.9375, "South Africa", "ZA", {"botswana", "eswatini", "lesotho", "mozambique", "namibia", "zimbabwe"}),
-    "south korea": (35.9078, 127.7669, "South Korea", "KR", {"north korea"}),
-    "south sudan": (6.8770, 31.3070, "South Sudan", "SS", {"central african republic", "democratic republic of the congo", "ethiopia", "kenya", "sudan", "uganda"}),
-    "spain": (40.4637, -3.7492, "Spain", "ES", {"andorra", "france", "gibraltar", "morocco", "portugal"}),
-    "sri lanka": (7.8731, 80.7718, "Sri Lanka", "LK", set()),
-    "sudan": (12.8628, 30.2176, "Sudan", "SD", {"central african republic", "chad", "egypt", "eritrea", "ethiopia", "libya", "south sudan"}),
-    "suriname": (3.9193, -56.0278, "Suriname", "SR", {"brazil", "french guiana", "guyana"}),
-    "sweden": (60.1282, 18.6435, "Sweden", "SE", {"finland", "norway"}),
-    "switzerland": (46.8182, 8.2275, "Switzerland", "CH", {"austria", "france", "germany", "italy", "liechtenstein"}),
-    "syria": (34.8021, 38.9968, "Syria", "SY", {"iraq", "israel", "jordan", "lebanon", "turkey"}),
-    "taiwan": (23.6978, 120.9605, "Taiwan", "TW", set()),
-    "tajikistan": (38.8610, 71.2761, "Tajikistan", "TJ", {"afghanistan", "china", "kyrgyzstan", "uzbekistan"}),
-    "tanzania": (-6.3690, 34.8888, "Tanzania", "TZ", {"burundi", "democratic republic of the congo", "kenya", "malawi", "mozambique", "rwanda", "uganda", "zambia"}),
-    "thailand": (15.8700, 100.9925, "Thailand", "TH", {"cambodia", "laos", "malaysia", "myanmar"}),
-    "timor-leste": (-8.8742, 125.7275, "Timor-Leste", "TL", {"indonesia"}),
-    "togo": (8.6195, 0.8248, "Togo", "TG", {"benin", "burkina faso", "ghana"}),
-    "tonga": (-21.1789, -175.1982, "Tonga", "TO", set()),
-    "trinidad and tobago": (10.6918, -61.2225, "Trinidad and Tobago", "TT", set()),
-    "tunisia": (33.8869, 9.5375, "Tunisia", "TN", {"algeria", "libya"}),
-    "turkey": (38.9637, 35.2433, "Turkey", "TR", {"armenia", "azerbaijan", "bulgaria", "georgia", "greece", "iran", "iraq", "syria"}),
-    "turkmenistan": (38.9697, 59.5563, "Turkmenistan", "TM", {"afghanistan", "iran", "kazakhstan", "uzbekistan"}),
-    "tuvalu": (-7.1095, 177.6493, "Tuvalu", "TV", set()),
-    "uganda": (1.3733, 32.2903, "Uganda", "UG", {"democratic republic of the congo", "kenya", "rwanda", "south sudan", "tanzania"}),
-    "ukraine": (48.3794, 31.1656, "Ukraine", "UA", {"belarus", "hungary", "moldova", "poland", "romania", "russia", "slovakia"}),
-    "united arab emirates": (23.4241, 53.8478, "United Arab Emirates", "AE", {"oman", "saudi arabia"}),
-    "united kingdom": (55.3781, -3.4360, "United Kingdom", "GB", {"ireland"}),
-    "united states": (37.0902, -95.7129, "United States", "US", {"canada", "mexico"}),
-    "uruguay": (-32.5228, -55.7658, "Uruguay", "UY", {"argentina", "brazil"}),
-    "uzbekistan": (41.3775, 64.5853, "Uzbekistan", "UZ", {"afghanistan", "kazakhstan", "kyrgyzstan", "tajikistan", "turkmenistan"}),
-    "vanuatu": (-15.3767, 166.9592, "Vanuatu", "VU", set()),
-    "vatican city": (41.9029, 12.4534, "Vatican City", "VA", {"italy"}),
-    "venezuela": (6.4238, -66.5897, "Venezuela", "VE", {"brazil", "colombia", "guyana"}),
-    "vietnam": (14.0583, 108.2772, "Vietnam", "VN", {"cambodia", "china", "laos"}),
-    "yemen": (15.5527, 48.5164, "Yemen", "YE", {"oman", "saudi arabia"}),
-    "zambia": (-13.1339, 27.8493, "Zambia", "ZM", {"angola", "botswana", "democratic republic of the congo", "malawi", "mozambique", "namibia", "tanzania", "zimbabwe"}),
-    "zimbabwe": (-19.0154, 29.1549, "Zimbabwe", "ZW", {"botswana", "mozambique", "south africa", "zambia"}),
+    # --- AMERICAS (EASY MODE) ---
+    "antigua and barbuda": (17.0608, -61.7964, "Antigua and Barbuda", "AG", set(), "americas"),
+    "argentina": (-38.4161, -63.6167, "Argentina", "AR", {"bolivia", "brazil", "chile", "paraguay", "uruguay"}, "americas"),
+    "bahamas": (25.0343, -77.3963, "Bahamas", "BS", set(), "americas"),
+    "barbados": (13.1939, -59.5432, "Barbados", "BB", set(), "americas"),
+    "belize": (17.1899, -88.4976, "Belize", "BZ", {"guatemala", "mexico"}, "americas"),
+    "bolivia": (-16.2902, -63.5887, "Bolivia", "BO", {"argentina", "brazil", "chile", "paraguay", "peru"}, "americas"),
+    "brazil": (-14.2350, -51.9253, "Brazil", "BR", {"argentina", "bolivia", "colombia", "french guiana", "guyana", "paraguay", "peru", "suriname", "uruguay", "venezuela"}, "americas"),
+    "canada": (56.1304, -106.3468, "Canada", "CA", {"united states", "usa"}, "americas"),
+    "chile": (-35.6751, -71.5430, "Chile", "CL", {"argentina", "bolivia", "peru"}, "americas"),
+    "colombia": (4.5709, -74.2973, "Colombia", "CO", {"brazil", "ecuador", "panama", "peru", "venezuela"}, "americas"),
+    "costa rica": (10.4806, -83.5858, "Costa Rica", "CR", {"nicaragua", "panama"}, "americas"),
+    "cuba": (21.5218, -77.7812, "Cuba", "CU", set(), "americas"),
+    "dominica": (15.4150, -61.3710, "Dominica", "DM", set(), "americas"),
+    "dominican republic": (18.7357, -70.1627, "Dominican Republic", "DO", {"haiti"}, "americas"),
+    "ecuador": (-1.8312, -78.1834, "Ecuador", "EC", {"colombia", "peru"}, "americas"),
+    "el salvador": (13.7942, -88.8965, "El Salvador", "SV", {"guatemala", "honduras"}, "americas"),
+    "grenada": (12.1165, -61.6790, "Grenada", "GD", set(), "americas"),
+    "guatemala": (15.7835, -90.2308, "Guatemala", "GT", {"belize", "el salvador", "honduras", "mexico"}, "americas"),
+    "guyana": (4.8604, -58.9302, "Guyana", "GY", {"brazil", "suriname", "venezuela"}, "americas"),
+    "haiti": (18.9712, -72.2852, "Haiti", "HT", {"dominican republic"}, "americas"),
+    "honduras": (15.2000, -86.2419, "Honduras", "HN", {"el salvador", "guatemala", "nicaragua"}, "americas"),
+    "jamaica": (18.1096, -77.2975, "Jamaica", "JM", set(), "americas"),
+    "mexico": (23.6345, -102.5528, "Mexico", "MX", {"belize", "guatemala", "united states", "usa"}, "americas"),
+    "nicaragua": (12.8654, -85.2072, "Nicaragua", "NI", {"costa rica", "honduras"}, "americas"),
+    "panama": (8.5380, -80.7821, "Panama", "PA", {"colombia", "costa rica"}, "americas"),
+    "paraguay": (-23.4425, -58.4438, "Paraguay", "PY", {"argentina", "bolivia", "brazil"}, "americas"),
+    "peru": (-9.1899, -75.0152, "Peru", "PE", {"bolivia", "brazil", "chile", "colombia", "ecuador"}, "americas"),
+    "saint kitts and nevis": (17.3578, -62.7829, "Saint Kitts and Nevis", "KN", set(), "americas"),
+    "saint lucia": (13.9094, -60.9789, "Saint Lucia", "LC", set(), "americas"),
+    "saint vincent and the grenadines": (12.9843, -61.2872, "Saint Vincent and the Grenadines", "VC", set(), "americas"),
+    "suriname": (3.9193, -56.0278, "Suriname", "SR", {"brazil", "french guiana", "guyana"}, "americas"),
+    "trinidad and tobago": (10.6918, -61.2225, "Trinidad and Tobago", "TT", set(), "americas"),
+    "united states": (37.0902, -95.7129, "United States", "US", {"canada", "mexico"}, "americas"),
+    "uruguay": (-32.5228, -55.7658, "Uruguay", "UY", {"argentina", "brazil"}, "americas"),
+    "venezuela": (6.4238, -66.5897, "Venezuela", "VE", {"brazil", "colombia", "guyana"}, "americas"),
 
-    # --- TERRITORIES & DEPENDENCIES ---
-    "american samoa": (-14.2710, -170.1322, "American Samoa", "AS", set()),
-    "anguilla": (18.2206, -63.0686, "Anguilla", "AI", set()),
-    "aruba": (12.5211, -69.9683, "Aruba", "AW", set()),
-    "bermuda": (32.3078, -64.7505, "Bermuda", "BM", set()),
-    "bonaire": (12.2019, -68.2624, "Bonaire", "BQ", set()),
-    "british virgin islands": (18.4207, -64.6399, "British Virgin Islands", "VG", set()),
-    "cayman islands": (19.3133, -81.2546, "Cayman Islands", "KY", set()),
-    "cook islands": (-21.2367, -159.7777, "Cook Islands", "CK", set()),
-    "curacao": (12.1696, -68.9900, "Curaçao", "CW", set()),
-    "falkland islands": (-51.7963, -59.5236, "Falkland Islands", "FK", set()),
-    "faroe islands": (61.8926, -6.9118, "Faroe Islands", "FO", set()),
-    "french guiana": (3.9339, -53.1258, "French Guiana", "GF", {"brazil", "suriname"}),
-    "french polynesia": (-17.6797, -149.4068, "French Polynesia", "PF", set()),
-    "gibraltar": (36.1408, -5.3536, "Gibraltar", "GI", {"spain"}),
-    "greenland": (71.7069, -42.6043, "Greenland", "GL", set()),
-    "guadeloupe": (16.2650, -61.5510, "Guadeloupe", "GP", set()),
-    "guam": (13.4443, 144.7937, "Guam", "GU", set()),
-    "guernsey": (49.4657, -2.5853, "Guernsey", "GG", set()),
-    "hong kong": (22.3193, 114.1694, "Hong Kong", "HK", {"china"}),
-    "isle of man": (54.2361, -4.5481, "Isle of Man", "IM", set()),
-    "jersey": (49.2144, -2.1312, "Jersey", "JE", set()),
-    "macau": (22.1987, 113.5439, "Macau", "MO", {"china"}),
-    "martinique": (14.6415, -61.0242, "Martinique", "MQ", set()),
-    "mayotte": (-12.8275, 45.1662, "Mayotte", "YT", set()),
-    "montserrat": (16.7425, -62.1874, "Montserrat", "MS", set()),
-    "new caledonia": (-20.9043, 165.6180, "New Caledonia", "NC", set()),
-    "niue": (-19.0544, -169.8672, "Niue", "NU", set()),
-    "norfolk island": (-29.0408, 167.9547, "Norfolk Island", "NF", set()),
-    "northern mariana islands": (15.0979, 145.6739, "Northern Mariana Islands", "MP", set()),
-    "puerto rico": (18.2208, -66.5901, "Puerto Rico", "PR", set()),
-    "reunion": (-21.1151, 55.5364, "Réunion", "RE", set()),
-    "saint barthelemy": (17.9000, -62.8333, "Saint Barthélemy", "BL", set()),
-    "saint helena": (-15.9650, -5.7089, "Saint Helena", "SH", set()),
-    "saint martin": (18.0708, -63.0501, "Saint Martin", "MF", {"sint maarten"}),
-    "saint pierre and miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set()),
-    "sint maarten": (18.0425, -63.0548, "Sint Maarten", "SX", {"saint martin"}),
-    "tokelau": (-9.2002, -171.8484, "Tokelau", "TK", set()),
-    "turks and caicos islands": (21.6940, -71.7979, "Turks and Caicos Islands", "TC", set()),
-    "us virgin islands": (18.3358, -64.8963, "U.S. Virgin Islands", "VI", set()),
-    "wallis and futuna": (-13.7651, -177.1561, "Wallis and Futuna", "WF", set()),
-    "western sahara": (24.2155, -12.8858, "Western Sahara", "EH", {"algeria", "mauritania", "morocco"}),
+    # --- EUROPE & ASIA (MEDIUM MODE) ---
+    "albania": (41.1533, 20.1683, "Albania", "AL", {"greece", "kosovo", "montenegro", "north macedonia"}, "europe_asia"),
+    "andorra": (42.5063, 1.5218, "Andorra", "AD", {"france", "spain"}, "europe_asia"),
+    "armenia": (40.0691, 45.0382, "Armenia", "AM", {"azerbaijan", "georgia", "iran", "turkey"}, "europe_asia"),
+    "austria": (47.5162, 14.5501, "Austria", "AT", {"czechia", "germany", "hungary", "italy", "liechtenstein", "slovakia", "slovenia", "switzerland"}, "europe_asia"),
+    "azerbaijan": (40.1431, 47.5769, "Azerbaijan", "AZ", {"armenia", "georgia", "iran", "russia", "turkey"}, "europe_asia"),
+    "bahrain": (26.0667, 50.5577, "Bahrain", "BH", set(), "europe_asia"),
+    "bangladesh": (23.6850, 90.3563, "Bangladesh", "BD", {"india", "myanmar"}, "europe_asia"),
+    "belarus": (53.7098, 27.9534, "Belarus", "BY", {"latvia", "lithuania", "poland", "russia", "ukraine"}, "europe_asia"),
+    "belgium": (50.5039, 4.4699, "Belgium", "BE", {"france", "germany", "luxembourg", "netherlands"}, "europe_asia"),
+    "bhutan": (27.5142, 90.4336, "Bhutan", "BT", {"china", "india"}, "europe_asia"),
+    "bosnia and herzegovina": (43.9159, 17.6791, "Bosnia and Herzegovina", "BA", {"croatia", "montenegro", "serbia"}, "europe_asia"),
+    "brunei": (4.5353, 114.7277, "Brunei", "BN", {"malaysia"}, "europe_asia"),
+    "bulgaria": (42.7339, 25.4858, "Bulgaria", "BG", {"greece", "north macedonia", "romania", "serbia", "turkey"}, "europe_asia"),
+    "cambodia": (12.5657, 104.9910, "Cambodia", "KH", {"laos", "thailand", "vietnam"}, "europe_asia"),
+    "china": (35.8617, 104.1954, "China", "CN", {"afghanistan", "bhutan", "india", "kazakhstan", "kyrgyzstan", "laos", "mongolia", "myanmar", "nepal", "north korea", "pakistan", "russia", "tajikistan", "vietnam"}, "europe_asia"),
+    "croatia": (45.1000, 15.2000, "Croatia", "HR", {"bosnia and herzegovina", "hungary", "montenegro", "serbia", "slovenia"}, "europe_asia"),
+    "cyprus": (35.1264, 33.4299, "Cyprus", "CY", set(), "europe_asia"),
+    "czechia": (49.8175, 15.4730, "Czechia", "CZ", {"austria", "germany", "poland", "slovakia"}, "europe_asia"),
+    "denmark": (56.2639, 9.5018, "Denmark", "DK", {"germany"}, "europe_asia"),
+    "estonia": (58.5953, 25.0136, "Estonia", "EE", {"latvia", "russia"}, "europe_asia"),
+    "finland": (61.9241, 25.7482, "Finland", "FI", {"norway", "russia", "sweden"}, "europe_asia"),
+    "france": (46.2276, 2.2137, "France", "FR", {"andorra", "belgium", "germany", "italy", "luxembourg", "monaco", "spain", "switzerland"}, "europe_asia"),
+    "georgia": (42.3154, 43.3569, "Georgia", "GE", {"armenia", "azerbaijan", "russia", "turkey"}, "europe_asia"),
+    "germany": (51.1657, 10.4515, "Germany", "DE", {"austria", "belgium", "czechia", "denmark", "france", "luxembourg", "netherlands", "poland", "switzerland"}, "europe_asia"),
+    "greece": (39.0742, 21.8243, "Greece", "GR", {"albania", "bulgaria", "north macedonia", "turkey"}, "europe_asia"),
+    "hungary": (47.1625, 19.5033, "Hungary", "HU", {"austria", "croatia", "romania", "serbia", "slovakia", "slovenia", "ukraine"}, "europe_asia"),
+    "iceland": (64.9631, -19.0208, "Iceland", "IS", set(), "europe_asia"),
+    "india": (20.5937, 78.9629, "India", "IN", {"bangladesh", "bhutan", "china", "myanmar", "nepal", "pakistan"}, "europe_asia"),
+    "indonesia": (-0.7893, 113.9213, "Indonesia", "ID", {"malaysia", "papua new guinea", "timor-leste"}, "europe_asia"),
+    "iran": (32.4279, 53.6880, "Iran", "IR", {"afghanistan", "armenia", "azerbaijan", "iraq", "pakistan", "turkey", "turkmenistan"}, "europe_asia"),
+    "iraq": (33.2232, 43.6793, "Iraq", "IQ", {"iran", "jordan", "kuwait", "saudi arabia", "syria", "turkey"}, "europe_asia"),
+    "ireland": (53.1424, -7.6921, "Ireland", "IE", {"united kingdom", "uk"}, "europe_asia"),
+    "israel": (31.0461, 34.8516, "Israel", "IL", {"egypt", "jordan", "lebanon", "palestine", "syria"}, "europe_asia"),
+    "italy": (41.8719, 12.5674, "Italy", "IT", {"austria", "france", "san marino", "slovenia", "switzerland", "vatican city"}, "europe_asia"),
+    "japan": (36.2048, 138.2529, "Japan", "JP", set(), "europe_asia"),
+    "jordan": (30.5852, 36.2384, "Jordan", "JO", {"iraq", "israel", "palestine", "saudi arabia", "syria"}, "europe_asia"),
+    "kazakhstan": (48.0196, 66.9237, "Kazakhstan", "KZ", {"china", "kyrgyzstan", "russia", "turkmenistan", "uzbekistan"}, "europe_asia"),
+    "kosovo": (42.6026, 20.9030, "Kosovo", "XK", {"albania", "montenegro", "north macedonia", "serbia"}, "europe_asia"),
+    "kuwait": (29.3117, 47.4818, "Kuwait", "KW", {"iraq", "saudi arabia"}, "europe_asia"),
+    "kyrgyzstan": (41.2044, 74.7661, "Kyrgyzstan", "KG", {"china", "kazakhstan", "tajikistan", "uzbekistan"}, "europe_asia"),
+    "laos": (19.8563, 102.4955, "Laos", "LA", {"cambodia", "china", "myanmar", "thailand", "vietnam"}, "europe_asia"),
+    "latvia": (56.8796, 24.6032, "Latvia", "LV", {"belarus", "estonia", "lithuania", "russia"}, "europe_asia"),
+    "lebanon": (33.8547, 35.8623, "Lebanon", "LB", {"israel", "syria"}, "europe_asia"),
+    "liechtenstein": (47.1660, 9.5554, "Liechtenstein", "LI", {"austria", "switzerland"}, "europe_asia"),
+    "lithuania": (55.1694, 23.8813, "Lithuania", "LT", {"belarus", "latvia", "poland", "russia"}, "europe_asia"),
+    "luxembourg": (49.8153, 6.1296, "Luxembourg", "LU", {"belgium", "france", "germany"}, "europe_asia"),
+    "malaysia": (4.2105, 101.9758, "Malaysia", "MY", {"brunei", "indonesia", "thailand"}, "europe_asia"),
+    "maldives": (3.2028, 73.2207, "Maldives", "MV", set(), "europe_asia"),
+    "malta": (35.9375, 14.3754, "Malta", "MT", set(), "europe_asia"),
+    "moldova": (47.4116, 28.3699, "Moldova", "MD", {"romania", "ukraine"}, "europe_asia"),
+    "monaco": (43.7384, 7.4246, "Monaco", "MC", {"france"}, "europe_asia"),
+    "mongolia": (46.8625, 103.8467, "Mongolia", "MN", {"china", "russia"}, "europe_asia"),
+    "montenegro": (42.7087, 19.3744, "Montenegro", "ME", {"albania", "bosnia and herzegovina", "kosovo", "serbia"}, "europe_asia"),
+    "myanmar": (21.9162, 95.9560, "Myanmar", "MM", {"bangladesh", "china", "india", "laos", "thailand"}, "europe_asia"),
+    "nepal": (28.3949, 84.1240, "Nepal", "NP", {"china", "india"}, "europe_asia"),
+    "netherlands": (52.1326, 5.2913, "Netherlands", "NL", {"belgium", "germany"}, "europe_asia"),
+    "north korea": (40.3399, 127.5101, "North Korea", "KP", {"china", "russia", "south korea"}, "europe_asia"),
+    "north macedonia": (41.6086, 21.7453, "North Macedonia", "MK", {"albania", "bulgaria", "greece", "kosovo", "serbia"}, "europe_asia"),
+    "norway": (60.4720, 8.4689, "Norway", "NO", {"finland", "russia", "sweden"}, "europe_asia"),
+    "oman": (21.5126, 55.9232, "Oman", "OM", {"saudi arabia", "united arab emirates", "yemen"}, "europe_asia"),
+    "pakistan": (30.3753, 69.3451, "Pakistan", "PK", {"afghanistan", "china", "india", "iran"}, "europe_asia"),
+    "palestine": (31.9522, 35.2332, "Palestine", "PS", {"egypt", "israel", "jordan"}, "europe_asia"),
+    "philippines": (12.8797, 121.7740, "Philippines", "PH", set(), "europe_asia"),
+    "poland": (51.9194, 19.1451, "Poland", "PL", {"belarus", "czechia", "germany", "lithuania", "russia", "slovakia", "ukraine"}, "europe_asia"),
+    "portugal": (39.3999, -8.2245, "Portugal", "PT", {"spain"}, "europe_asia"),
+    "qatar": (25.3548, 51.1839, "Qatar", "QA", {"saudi arabia"}, "europe_asia"),
+    "romania": (45.9432, 24.9668, "Romania", "RO", {"bulgaria", "hungary", "moldova", "serbia", "ukraine"}, "europe_asia"),
+    "russia": (61.5240, 105.3188, "Russia", "RU", {"azerbaijan", "belarus", "china", "estonia", "finland", "georgia", "kazakhstan", "latvia", "lithuania", "mongolia", "north korea", "norway", "poland", "ukraine"}, "europe_asia"),
+    "san marino": (43.9424, 12.4578, "San Marino", "SM", {"italy"}, "europe_asia"),
+    "saudi arabia": (23.8859, 45.0792, "Saudi Arabia", "SA", {"iraq", "jordan", "kuwait", "oman", "qatar", "united arab emirates", "yemen"}, "europe_asia"),
+    "serbia": (44.0165, 21.0059, "Serbia", "RS", {"bosnia and herzegovina", "bulgaria", "croatia", "hungary", "kosovo", "montenegro", "north macedonia", "romania"}, "europe_asia"),
+    "singapore": (1.3521, 103.8198, "Singapore", "SG", set(), "europe_asia"),
+    "slovakia": (48.6690, 19.6990, "Slovakia", "SK", {"austria", "czechia", "hungary", "poland", "ukraine"}, "europe_asia"),
+    "slovenia": (46.1512, 14.9955, "Slovenia", "SI", {"austria", "croatia", "italy", "hungary"}, "europe_asia"),
+    "south korea": (35.9078, 127.7669, "South Korea", "KR", {"north korea"}, "europe_asia"),
+    "spain": (40.4637, -3.7492, "Spain", "ES", {"andorra", "france", "gibraltar", "morocco", "portugal"}, "europe_asia"),
+    "sri lanka": (7.8731, 80.7718, "Sri Lanka", "LK", set(), "europe_asia"),
+    "sweden": (60.1282, 18.6435, "Sweden", "SE", {"finland", "norway"}, "europe_asia"),
+    "switzerland": (46.8182, 8.2275, "Switzerland", "CH", {"austria", "france", "germany", "italy", "liechtenstein"}, "europe_asia"),
+    "syria": (34.8021, 38.9968, "Syria", "SY", {"iraq", "israel", "jordan", "lebanon", "turkey"}, "europe_asia"),
+    "taiwan": (23.6978, 120.9605, "Taiwan", "TW", set(), "europe_asia"),
+    "tajikistan": (38.8610, 71.2761, "Tajikistan", "TJ", {"afghanistan", "china", "kyrgyzstan", "uzbekistan"}, "europe_asia"),
+    "thailand": (15.8700, 100.9925, "Thailand", "TH", {"cambodia", "laos", "malaysia", "myanmar"}, "europe_asia"),
+    "timor-leste": (-8.8742, 125.7275, "Timor-Leste", "TL", {"indonesia"}, "europe_asia"),
+    "turkey": (38.9637, 35.2433, "Turkey", "TR", {"armenia", "azerbaijan", "bulgaria", "georgia", "greece", "iran", "iraq", "syria"}, "europe_asia"),
+    "turkmenistan": (38.9697, 59.5563, "Turkmenistan", "TM", {"afghanistan", "iran", "kazakhstan", "uzbekistan"}, "europe_asia"),
+    "ukraine": (48.3794, 31.1656, "Ukraine", "UA", {"belarus", "hungary", "moldova", "poland", "romania", "russia", "slovakia"}, "europe_asia"),
+    "united arab emirates": (23.4241, 53.8478, "United Arab Emirates", "AE", {"oman", "saudi arabia"}, "europe_asia"),
+    "united kingdom": (55.3781, -3.4360, "United Kingdom", "GB", {"ireland"}, "europe_asia"),
+    "uzbekistan": (41.3775, 64.5853, "Uzbekistan", "UZ", {"afghanistan", "kazakhstan", "kyrgyzstan", "tajikistan", "turkmenistan"}, "europe_asia"),
+    "vatican city": (41.9029, 12.4534, "Vatican City", "VA", {"italy"}, "europe_asia"),
+    "vietnam": (14.0583, 108.2772, "Vietnam", "VN", {"cambodia", "china", "laos"}, "europe_asia"),
+    "yemen": (15.5527, 48.5164, "Yemen", "YE", {"oman", "saudi arabia"}, "europe_asia"),
+
+    # --- AFRICA & OCEANIA (HARD MODE) ---
+    "afghanistan": (33.9391, 67.7100, "Afghanistan", "AF", {"china", "iran", "pakistan", "tajikistan", "turkmenistan", "uzbekistan"}, "africa_oceania"),
+    "algeria": (28.0339, 1.6596, "Algeria", "DZ", {"libya", "mali", "mauritania", "morocco", "niger", "tunisia", "western sahara"}, "africa_oceania"),
+    "angola": (-11.2027, 17.8739, "Angola", "AO", {"congo", "democratic republic of the congo", "namibia", "zambia"}, "africa_oceania"),
+    "australia": (-25.2744, 133.7751, "Australia", "AU", set(), "africa_oceania"),
+    "benin": (9.3077, 2.3158, "Benin", "BJ", {"burkina faso", "niger", "nigeria", "togo"}, "africa_oceania"),
+    "botswana": (-22.3285, 24.6849, "Botswana", "BW", {"namibia", "south africa", "zambia", "zimbabwe"}, "africa_oceania"),
+    "burkina faso": (12.2383, -1.5616, "Burkina Faso", "BF", {"benin", "cote d'ivoire", "ghana", "mali", "niger", "togo"}, "africa_oceania"),
+    "burundi": (-3.3731, 29.9189, "Burundi", "BI", {"democratic republic of the congo", "rwanda", "tanzania"}, "africa_oceania"),
+    "cabo verde": (16.0020, -24.0131, "Cabo Verde", "CV", set(), "africa_oceania"),
+    "cameroon": (3.8480, 11.5021, "Cameroon", "CM", {"central african republic", "chad", "congo", "equatorial guinea", "gabon", "nigeria"}, "africa_oceania"),
+    "central african republic": (6.6111, 20.9394, "Central African Republic", "CF", {"cameroon", "chad", "congo", "democratic republic of the congo", "south sudan", "sudan"}, "africa_oceania"),
+    "chad": (15.4542, 18.7322, "Chad", "TD", {"cameroon", "central african republic", "libya", "niger", "nigeria", "sudan"}, "africa_oceania"),
+    "comoros": (-11.8750, 43.8722, "Comoros", "KM", set(), "africa_oceania"),
+    "congo": (-0.2280, 15.8277, "Congo", "CG", {"angola", "cameroon", "central african republic", "democratic republic of the congo", "gabon"}, "africa_oceania"),
+    "democratic republic of the congo": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD", {"angola", "central african republic", "congo", "rwanda", "south sudan", "tanzania", "uganda", "zambia"}, "africa_oceania"),
+    "djibouti": (11.8251, 42.5903, "Djibouti", "DJ", {"eritrea", "ethiopia", "somalia"}, "africa_oceania"),
+    "egypt": (26.8206, 30.8025, "Egypt", "EG", {"israel", "libya", "palestine", "sudan"}, "africa_oceania"),
+    "equatorial guinea": (1.6508, 10.2679, "Equatorial Guinea", "GQ", {"cameroon", "gabon"}, "africa_oceania"),
+    "eritrea": (15.1794, 39.7823, "Eritrea", "ER", {"djibouti", "ethiopia", "sudan"}, "africa_oceania"),
+    "eswatini": (-26.5225, 31.4659, "Eswatini", "SZ", {"mozambique", "south africa"}, "africa_oceania"),
+    "ethiopia": (9.1450, 40.4897, "Ethiopia", "ET", {"djibouti", "eritrea", "kenya", "somalia", "south sudan", "sudan"}, "africa_oceania"),
+    "fiji": (-17.7134, 178.0650, "Fiji", "FJ", set(), "africa_oceania"),
+    "gabon": (-0.8037, 11.6094, "Gabon", "GA", {"cameroon", "congo", "equatorial guinea"}, "africa_oceania"),
+    "gambia": (13.4432, -15.3101, "Gambia", "GM", {"senegal"}, "africa_oceania"),
+    "ghana": (7.9465, -1.0232, "Ghana", "GH", {"burkina faso", "cote d'ivoire", "togo"}, "africa_oceania"),
+    "guinea": (9.9456, -9.6966, "Guinea", "GN", {"cote d'ivoire", "guinea-bissau", "liberia", "mali", "senegal", "sierra leone"}, "africa_oceania"),
+    "guinea-bissau": (11.8037, -15.1804, "Guinea-Bissau", "GW", {"guinea", "senegal"}, "africa_oceania"),
+    "kenya": (-0.0236, 37.9062, "Kenya", "KE", {"ethiopia", "somalia", "south sudan", "tanzania", "uganda"}, "africa_oceania"),
+    "kiribati": (-3.3704, -168.7340, "Kiribati", "KI", set(), "africa_oceania"),
+    "lesotho": (-29.6100, 28.2336, "Lesotho", "LS", {"south africa"}, "africa_oceania"),
+    "liberia": (6.4281, -9.4295, "Liberia", "LR", {"cote d'ivoire", "guinea", "sierra leone"}, "africa_oceania"),
+    "libya": (26.3351, 17.2283, "Libya", "LY", {"algeria", "chad", "egypt", "niger", "sudan", "tunisia"}, "africa_oceania"),
+    "madagascar": (-18.7669, 46.8691, "Madagascar", "MG", set(), "africa_oceania"),
+    "malawi": (-13.2543, 34.3015, "Malawi", "MW", {"mozambique", "tanzania", "zambia"}, "africa_oceania"),
+    "mali": (17.5707, -3.9962, "Mali", "ML", {"algeria", "burkina faso", "cote d'ivoire", "guinea", "mauritania", "niger", "senegal"}, "africa_oceania"),
+    "marshall islands": (7.1315, 171.1845, "Marshall Islands", "MH", set(), "africa_oceania"),
+    "mauritania": (21.0079, -10.9408, "Mauritania", "MR", {"algeria", "mali", "senegal", "western sahara"}, "africa_oceania"),
+    "mauritius": (-20.3484, 57.5522, "Mauritius", "MU", set(), "africa_oceania"),
+    "micronesia": (7.4256, 150.5508, "Micronesia", "FM", set(), "africa_oceania"),
+    "morocco": (31.7917, -7.0926, "Morocco", "MA", {"algeria", "spain", "western sahara"}, "africa_oceania"),
+    "mozambique": (-18.6657, 35.5296, "Mozambique", "MZ", {"eswatini", "malawi", "south africa", "tanzania", "zambia", "zimbabwe"}, "africa_oceania"),
+    "namibia": (-22.9576, 18.4904, "Namibia", "NA", {"angola", "botswana", "south africa", "zambia"}, "africa_oceania"),
+    "nauru": (-0.5228, 166.9315, "Nauru", "NR", set(), "africa_oceania"),
+    "new zealand": (-40.9006, 174.8860, "New Zealand", "NZ", set(), "africa_oceania"),
+    "niger": (17.6078, 8.0817, "Niger", "NE", {"algeria", "benin", "burkina faso", "chad", "libya", "mali", "nigeria"}, "africa_oceania"),
+    "nigeria": (9.0820, 8.6753, "Nigeria", "NG", {"benin", "cameroon", "chad", "niger"}, "africa_oceania"),
+    "palau": (7.5150, 134.5825, "Palau", "PW", set(), "africa_oceania"),
+    "papua new guinea": (-6.3149, 143.9555, "Papua New Guinea", "PG", {"indonesia"}, "africa_oceania"),
+    "rwanda": (-1.9403, 29.8739, "Rwanda", "RW", {"burundi", "democratic republic of the congo", "tanzania", "uganda"}, "africa_oceania"),
+    "samoa": (-13.7590, -172.1046, "Samoa", "WS", set(), "africa_oceania"),
+    "sao tome and principe": (0.1864, 6.6131, "Sao Tome and Principe", "ST", set(), "africa_oceania"),
+    "senegal": (14.4974, -14.4524, "Senegal", "SN", {"gambia", "guinea", "guinea-bissau", "mauritania", "mali"}, "africa_oceania"),
+    "seychelles": (-4.6796, 55.4920, "Seychelles", "SC", set(), "africa_oceania"),
+    "sierra leone": (8.4606, -11.7799, "Sierra Leone", "SL", {"guinea", "liberia"}, "africa_oceania"),
+    "solomon islands": (-9.6457, 160.1562, "Solomon Islands", "SB", set(), "africa_oceania"),
+    "somalia": (5.1521, 46.1996, "Somalia", "SO", {"djibouti", "ethiopia", "kenya"}, "africa_oceania"),
+    "south africa": (-30.5595, 22.9375, "South Africa", "ZA", {"botswana", "eswatini", "lesotho", "mozambique", "namibia", "zimbabwe"}, "africa_oceania"),
+    "south sudan": (6.8770, 31.3070, "South Sudan", "SS", {"central african republic", "democratic republic of the congo", "ethiopia", "kenya", "sudan", "uganda"}, "africa_oceania"),
+    "sudan": (12.8628, 30.2176, "Sudan", "SD", {"central african republic", "chad", "egypt", "eritrea", "ethiopia", "libya", "south sudan"}, "africa_oceania"),
+    "tanzania": (-6.3690, 34.8888, "Tanzania", "TZ", {"burundi", "democratic republic of the congo", "kenya", "malawi", "mozambique", "rwanda", "uganda", "zambia"}, "africa_oceania"),
+    "togo": (8.6195, 0.8248, "Togo", "TG", {"benin", "burkina faso", "ghana"}, "africa_oceania"),
+    "tonga": (-21.1789, -175.1982, "Tonga", "TO", set(), "africa_oceania"),
+    "tunisia": (33.8869, 9.5375, "Tunisia", "TN", {"algeria", "libya"}, "africa_oceania"),
+    "tuvalu": (-7.1095, 177.6493, "Tuvalu", "TV", set(), "africa_oceania"),
+    "uganda": (1.3733, 32.2903, "Uganda", "UG", {"democratic republic of the congo", "kenya", "rwanda", "south sudan", "tanzania"}, "africa_oceania"),
+    "vanuatu": (-15.3767, 166.9592, "Vanuatu", "VU", set(), "africa_oceania"),
+    "zambia": (-13.1339, 27.8493, "Zambia", "ZM", {"angola", "botswana", "democratic republic of the congo", "malawi", "mozambique", "namibia", "tanzania", "zimbabwe"}, "africa_oceania"),
+    "zimbabwe": (-19.0154, 29.1549, "Zimbabwe", "ZW", {"botswana", "mozambique", "south africa", "zambia"}, "africa_oceania"),
+
+    # --- TERRITORIES & DEPENDENCIES (IMPOSSIBLE MODE) ---
+    "american samoa": (-14.2710, -170.1322, "American Samoa", "AS", set(), "territory"),
+    "anguilla": (18.2206, -63.0686, "Anguilla", "AI", set(), "territory"),
+    "aruba": (12.5211, -69.9683, "Aruba", "AW", set(), "territory"),
+    "bermuda": (32.3078, -64.7505, "Bermuda", "BM", set(), "territory"),
+    "bonaire": (12.2019, -68.2624, "Bonaire", "BQ", set(), "territory"),
+    "british virgin islands": (18.4207, -64.6399, "British Virgin Islands", "VG", set(), "territory"),
+    "cayman islands": (19.3133, -81.2546, "Cayman Islands", "KY", set(), "territory"),
+    "cook islands": (-21.2367, -159.7777, "Cook Islands", "CK", set(), "territory"),
+    "curacao": (12.1696, -68.9900, "Curaçao", "CW", set(), "territory"),
+    "falkland islands": (-51.7963, -59.5236, "Falkland Islands", "FK", set(), "territory"),
+    "faroe islands": (61.8926, -6.9118, "Faroe Islands", "FO", set(), "territory"),
+    "french guiana": (3.9339, -53.1258, "French Guiana", "GF", {"brazil", "suriname"}, "territory"),
+    "french polynesia": (-17.6797, -149.4068, "French Polynesia", "PF", set(), "territory"),
+    "gibraltar": (36.1408, -5.3536, "Gibraltar", "GI", {"spain"}, "territory"),
+    "greenland": (71.7069, -42.6043, "Greenland", "GL", set(), "territory"),
+    "guadeloupe": (16.2650, -61.5510, "Guadeloupe", "GP", set(), "territory"),
+    "guam": (13.4443, 144.7937, "Guam", "GU", set(), "territory"),
+    "guernsey": (49.4657, -2.5853, "Guernsey", "GG", set(), "territory"),
+    "hong kong": (22.3193, 114.1694, "Hong Kong", "HK", {"china"}, "territory"),
+    "isle of man": (54.2361, -4.5481, "Isle of Man", "IM", set(), "territory"),
+    "jersey": (49.2144, -2.1312, "Jersey", "JE", set(), "territory"),
+    "macau": (22.1987, 113.5439, "Macau", "MO", {"china"}, "territory"),
+    "martinique": (14.6415, -61.0242, "Martinique", "MQ", set(), "territory"),
+    "mayotte": (-12.8275, 45.1662, "Mayotte", "YT", set(), "territory"),
+    "montserrat": (16.7425, -62.1874, "Montserrat", "MS", set(), "territory"),
+    "new caledonia": (-20.9043, 165.6180, "New Caledonia", "NC", set(), "territory"),
+    "niue": (-19.0544, -169.8672, "Niue", "NU", set(), "territory"),
+    "norfolk island": (-29.0408, 167.9547, "Norfolk Island", "NF", set(), "territory"),
+    "northern mariana islands": (15.0979, 145.6739, "Northern Mariana Islands", "MP", set(), "territory"),
+    "puerto rico": (18.2208, -66.5901, "Puerto Rico", "PR", set(), "territory"),
+    "reunion": (-21.1151, 55.5364, "Réunion", "RE", set(), "territory"),
+    "saint barthelemy": (17.9000, -62.8333, "Saint Barthélemy", "BL", set(), "territory"),
+    "saint helena": (-15.9650, -5.7089, "Saint Helena", "SH", set(), "territory"),
+    "saint martin": (18.0708, -63.0501, "Saint Martin", "MF", {"sint maarten"}, "territory"),
+    "saint pierre and miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set(), "territory"),
+    "sint maarten": (18.0425, -63.0548, "Sint Maarten", "SX", {"saint martin"}, "territory"),
+    "tokelau": (-9.2002, -171.8484, "Tokelau", "TK", set(), "territory"),
+    "turks and caicos islands": (21.6940, -71.7979, "Turks and Caicos Islands", "TC", set(), "territory"),
+    "us virgin islands": (18.3358, -64.8963, "U.S. Virgin Islands", "VI", set(), "territory"),
+    "wallis and futuna": (-13.7651, -177.1561, "Wallis and Futuna", "WF", set(), "territory"),
+    "western sahara": (24.2155, -12.8858, "Western Sahara", "EH", {"algeria", "mauritania", "morocco"}, "territory"),
 
     # --- COMMON ALIASES ---
-    "uae": (23.4241, 53.8478, "United Arab Emirates", "AE", {"oman", "saudi arabia"}),
-    "uk": (55.3781, -3.4360, "United Kingdom", "GB", {"ireland"}),
-    "usa": (37.0902, -95.7129, "United States", "US", {"canada", "mexico"}),
-    "us": (37.0902, -95.7129, "United States", "US", {"canada", "mexico"}),
-    "drc": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD", {"angola", "central african republic", "congo", "rwanda", "south sudan", "tanzania", "uganda", "zambia"}),
-    "dr congo": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD", {"angola", "central african republic", "congo", "rwanda", "south sudan", "tanzania", "uganda", "zambia"}),
-    "ivory coast": (7.5400, -5.5471, "Côte d'Ivoire", "CI", {"burkina faso", "ghana", "guinea", "liberia", "mali"}),
-    "bvi": (18.4207, -64.6399, "British Virgin Islands", "VG", set()),
-    "curaçao": (12.1696, -68.9900, "Curaçao", "CW", set()),
-    "st barthelemy": (17.9000, -62.8333, "Saint Barthélemy", "BL", set()),
-    "st helena": (-15.9650, -5.7089, "Saint Helena", "SH", set()),
-    "st martin": (18.0708, -63.0501, "Saint Martin", "MF", {"sint maarten"}),
-    "st pierre and miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set()),
-    "st. pierre and miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set()),
-    "spm": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set()),
-    "turks and caicos": (21.6940, -71.7979, "Turks and Caicos Islands", "TC", set()),
-    "u.s. virgin islands": (18.3358, -64.8963, "U.S. Virgin Islands", "VI", set()),
-    "usvi": (18.3358, -64.8963, "U.S. Virgin Islands", "VI", set()),
-    "🇳🇪": (17.6078, 8.0817, "Niger", "NE", {"algeria", "benin", "burkina faso", "chad", "libya", "mali", "nigeria"}),
+    "uae": (23.4241, 53.8478, "United Arab Emirates", "AE", {"oman", "saudi arabia"}, "europe_asia"),
+    "uk": (55.3781, -3.4360, "United Kingdom", "GB", {"ireland"}, "europe_asia"),
+    "usa": (37.0902, -95.7129, "United States", "US", {"canada", "mexico"}, "americas"),
+    "us": (37.0902, -95.7129, "United States", "US", {"canada", "mexico"}, "americas"),
+    "drc": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD", {"angola", "central african republic", "congo", "rwanda", "south sudan", "tanzania", "uganda", "zambia"}, "africa_oceania"),
+    "dr congo": (-4.0383, 21.7587, "Democratic Republic of the Congo", "CD", {"angola", "central african republic", "congo", "rwanda", "south sudan", "tanzania", "uganda", "zambia"}, "africa_oceania"),
+    "ivory coast": (7.5400, -5.5471, "Côte d'Ivoire", "CI", {"burkina faso", "ghana", "guinea", "liberia", "mali"}, "africa_oceania"),
+    "bvi": (18.4207, -64.6399, "British Virgin Islands", "VG", set(), "territory"),
+    "curaçao": (12.1696, -68.9900, "Curaçao", "CW", set(), "territory"),
+    "st barthelemy": (17.9000, -62.8333, "Saint Barthélemy", "BL", set(), "territory"),
+    "st helena": (-15.9650, -5.7089, "Saint Helena", "SH", set(), "territory"),
+    "st martin": (18.0708, -63.0501, "Saint Martin", "MF", {"sint maarten"}, "territory"),
+    "st pierre and miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set(), "territory"),
+    "st. pierre and miquelon": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set(), "territory"),
+    "spm": (46.8852, -56.3159, "Saint Pierre and Miquelon", "PM", set(), "territory"),
+    "turks and caicos": (21.6940, -71.7979, "Turks and Caicos Islands", "TC", set(), "territory"),
+    "u.s. virgin islands": (18.3358, -64.8963, "U.S. Virgin Islands", "VI", set(), "territory"),
+    "usvi": (18.3358, -64.8963, "U.S. Virgin Islands", "VI", set(), "territory"),
+    "🇳🇪": (17.6078, 8.0817, "Niger", "NE", {"algeria", "benin", "burkina faso", "chad", "libya", "mali", "nigeria"}, "africa_oceania"),
 }
 
 
@@ -569,7 +564,7 @@ class DifficultyVoteView(discord.ui.View):
     def __init__(self, creator_id: int, timeout: float = 15.0):
         super().__init__(timeout=timeout)
         self.creator_id = creator_id
-        self.votes = {"easy": set(), "medium": set(), "hard": set()}
+        self.votes = {"easy": set(), "medium": set(), "hard": set(), "impossible": set()}
         self.selected_difficulty = "easy"
         self.finished = False
 
@@ -582,18 +577,21 @@ class DifficultyVoteView(discord.ui.View):
                     child.label = f"Medium ({len(self.votes['medium'])})"
                 elif child.custom_id == "vote_hard":
                     child.label = f"Hard ({len(self.votes['hard'])})"
+                elif child.custom_id == "vote_impossible":
+                    child.label = f"Impossible ({len(self.votes['impossible'])})"
 
     def determine_winner(self) -> str:
         counts = {
             "easy": len(self.votes["easy"]),
             "medium": len(self.votes["medium"]),
             "hard": len(self.votes["hard"]),
+            "impossible": len(self.votes["impossible"]),
         }
         max_votes = max(counts.values())
         if max_votes == 0:
             return "easy"
         
-        for diff in ["easy", "medium", "hard"]:
+        for diff in ["easy", "medium", "hard", "impossible"]:
             if counts[diff] == max_votes:
                 return diff
         return "easy"
@@ -601,31 +599,40 @@ class DifficultyVoteView(discord.ui.View):
     @discord.ui.button(label="Easy (0)", style=discord.ButtonStyle.success, custom_id="vote_easy")
     async def easy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         uid = interaction.user.id
+        for k in self.votes:
+            self.votes[k].discard(uid)
         self.votes["easy"].add(uid)
-        self.votes["medium"].discard(uid)
-        self.votes["hard"].discard(uid)
         self.update_button_labels()
         await interaction.response.edit_message(view=self)
 
     @discord.ui.button(label="Medium (0)", style=discord.ButtonStyle.primary, custom_id="vote_medium")
     async def medium_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         uid = interaction.user.id
+        for k in self.votes:
+            self.votes[k].discard(uid)
         self.votes["medium"].add(uid)
-        self.votes["easy"].discard(uid)
-        self.votes["hard"].discard(uid)
         self.update_button_labels()
         await interaction.response.edit_message(view=self)
 
     @discord.ui.button(label="Hard (0)", style=discord.ButtonStyle.danger, custom_id="vote_hard")
     async def hard_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         uid = interaction.user.id
+        for k in self.votes:
+            self.votes[k].discard(uid)
         self.votes["hard"].add(uid)
-        self.votes["easy"].discard(uid)
-        self.votes["medium"].discard(uid)
         self.update_button_labels()
         await interaction.response.edit_message(view=self)
 
-    @discord.ui.button(label="Start Game Now", style=discord.ButtonStyle.secondary, custom_id="start_now")
+    @discord.ui.button(label="Impossible (0)", style=discord.ButtonStyle.secondary, custom_id="vote_impossible")
+    async def impossible_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        uid = interaction.user.id
+        for k in self.votes:
+            self.votes[k].discard(uid)
+        self.votes["impossible"].add(uid)
+        self.update_button_labels()
+        await interaction.response.edit_message(view=self)
+
+    @discord.ui.button(label="Start Game Now", style=discord.ButtonStyle.secondary, custom_id="start_now", row=1)
     async def start_now_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if interaction.user.id != self.creator_id and interaction.user.id not in ADMIN_USER_IDS:
             await interaction.response.send_message("❌ Only the game creator can force start the game!", ephemeral=True)
@@ -935,6 +942,7 @@ async def guessthemysterycountry_slash(
         await interaction.followup.send("❌ Invalid channel destination!", ephemeral=True)
         return
 
+    specific_choice = None
     if country:
         clean_c = normalize_text(country)
         if clean_c not in COUNTRY_DATA:
@@ -943,13 +951,7 @@ async def guessthemysterycountry_slash(
                 ephemeral=True
             )
             return
-        chosen_key = clean_c
-    else:
-        chosen_key = random.choice(list(COUNTRY_DATA.keys()))
-
-    country_entry = COUNTRY_DATA[chosen_key]
-    lat, lon, official_name, cca2 = country_entry[0], country_entry[1], country_entry[2], country_entry[3]
-    borders = country_entry[4] if len(country_entry) > 4 else set()
+        specific_choice = clean_c
 
     # Step 1: Send Voting Embed to Chat
     vote_embed = discord.Embed(
@@ -957,9 +959,10 @@ async def guessthemysterycountry_slash(
         description=(
             f"**Game host:** {interaction.user.mention}\n\n"
             "Click a button below to vote for the game difficulty:\n"
-            "• 🟢 **Easy:** Shows country name, distance & compass direction\n"
-            "• 🟡 **Medium:** Shows flag emoji, distance & compass direction\n"
-            "• 🔴 **Hard:** Shows flag emoji & distance only (no direction)\n\n"
+            "• 🟢 **Easy:** Americas only (Shows name, distance & direction)\n"
+            "• 🟡 **Medium:** Europe & Asia only (Shows flag, distance & direction)\n"
+            "• 🔴 **Hard:** Africa & Oceania only (Shows flag & distance only)\n"
+            "• 🟣 **Impossible:** Territories only (Shows flag & distance only)\n\n"
             "⏱️ *Voting ends in 15 seconds!*"
         ),
         color=discord.Color.gold()
@@ -976,7 +979,35 @@ async def guessthemysterycountry_slash(
     await vote_view.wait()
 
     chosen_diff = vote_view.determine_winner()
-    diff_label = "🟢 Easy" if chosen_diff == "easy" else ("🟡 Medium" if chosen_diff == "medium" else "🔴 Hard")
+
+    if specific_choice:
+        chosen_key = specific_choice
+    else:
+        # Pick random country based on region matching difficulty
+        if chosen_diff == "easy":
+            candidates = [k for k, v in COUNTRY_DATA.items() if len(v) > 5 and v[5] == "americas"]
+        elif chosen_diff == "medium":
+            candidates = [k for k, v in COUNTRY_DATA.items() if len(v) > 5 and v[5] == "europe_asia"]
+        elif chosen_diff == "hard":
+            candidates = [k for k, v in COUNTRY_DATA.items() if len(v) > 5 and v[5] == "africa_oceania"]
+        else:
+            candidates = [k for k, v in COUNTRY_DATA.items() if len(v) > 5 and v[5] == "territory"]
+
+        if not candidates:
+            candidates = list(COUNTRY_DATA.keys())
+            
+        chosen_key = random.choice(candidates)
+
+    country_entry = COUNTRY_DATA[chosen_key]
+    lat, lon, official_name, cca2 = country_entry[0], country_entry[1], country_entry[2], country_entry[3]
+    borders = country_entry[4] if len(country_entry) > 4 else set()
+
+    diff_label = (
+        "🟢 Easy" if chosen_diff == "easy"
+        else ("🟡 Medium" if chosen_diff == "medium"
+        else ("🔴 Hard" if chosen_diff == "hard"
+        else "🟣 Impossible"))
+    )
 
     # Step 3: Replace vote embed with active game embed
     reward_pieces = []
@@ -1856,12 +1887,14 @@ async def on_message(message: discord.Message):
 
         if code_data["ready"]:
             creator_id = code_data.get("creator_id")
-            
-            if creator_id and message.author.id == creator_id and message.author.id not in ADMIN_USER_IDS:
-                return
+            challenge_type = code_data.get("type", "code")
+
+            # Prevent hosts from answering EXCEPT in country games
+            if challenge_type != "country":
+                if creator_id and message.author.id == creator_id and message.author.id not in ADMIN_USER_IDS:
+                    return
 
             accepted_answers = code_data.get("accepted_answers", [code_data["code"].lower()])
-            challenge_type = code_data.get("type", "code")
             troll_target = code_data.get("troll_target")
 
             if troll_target and message.author.id == troll_target and msg_clean in accepted_answers:
@@ -1927,7 +1960,7 @@ async def on_message(message: discord.Message):
                         elif difficulty == "medium":
                             guess_entry = f"{flag_emoji} — **{dist_km:,} km** {direction_str} {feedback_str} [{message.author.mention}]"
                         else:
-                            # Hard: flag and distance only, no direction or country name
+                            # Hard and Impossible mode: flag and distance only
                             guess_entry = f"{flag_emoji} — **{dist_km:,} km** {feedback_str} [{message.author.mention}]"
                     
                     code_data["country_guesses"].append(guess_entry)
@@ -1939,7 +1972,12 @@ async def on_message(message: discord.Message):
                             creator_user = bot.get_user(creator_id)
                             creator_mention = creator_user.mention if creator_user else "Unknown"
 
-                            diff_label = "🟢 Easy" if difficulty == "easy" else ("🟡 Medium" if difficulty == "medium" else "🔴 Hard")
+                            diff_label = (
+                                "🟢 Easy" if difficulty == "easy"
+                                else ("🟡 Medium" if difficulty == "medium"
+                                else ("🔴 Hard" if difficulty == "hard"
+                                else "🟣 Impossible"))
+                            )
 
                             role_id = code_data.get("role_id")
                             custom_reward_text = code_data.get("reward_text")
