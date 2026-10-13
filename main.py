@@ -968,6 +968,123 @@ async def process_wordle_creation(
     }
 
 
+async def start_country_round(
+    target_channel: discord.TextChannel | discord.Thread | discord.DMChannel,
+    creator: discord.User | discord.Member,
+    country: str | None = None,
+    role: discord.Role | None = None,
+    reward_text: str | None = None,
+    required_role: discord.Role | None = None,
+    current_round: int = 1,
+    total_rounds: int = 1,
+    session_scores: dict | None = None
+):
+    if session_scores is None:
+        session_scores = {}
+
+    specific_choice = None
+    if country:
+        clean_c = normalize_text(country)
+        if clean_c in COUNTRY_DATA:
+            specific_choice = clean_c
+
+    # Step 1: Send Initial Voting Embed to Chat
+    vote_view = DifficultyVoteView(creator=creator, timeout=15.0)
+    initial_embed = vote_view.build_updated_embed()
+    if total_rounds > 1:
+        initial_embed.title = f"🗳️ Vote for Difficulty Mode! (Round {current_round}/{total_rounds})"
+    
+    vote_message = await target_channel.send(embed=initial_embed, view=vote_view)
+    vote_view.message = vote_message
+
+    # Step 2: Wait 15s without resetting timer on vote clicks
+    await vote_view.wait()
+
+    chosen_diff = vote_view.determine_winner()
+
+    if specific_choice:
+        chosen_key = specific_choice
+    else:
+        if chosen_diff == "easy":
+            allowed_regions = {"americas"}
+        elif chosen_diff == "medium":
+            allowed_regions = {"americas", "europe_asia"}
+        elif chosen_diff == "hard":
+            allowed_regions = {"americas", "europe_asia", "africa_oceania"}
+        else:
+            allowed_regions = {"americas", "europe_asia", "africa_oceania", "territory"}
+
+        candidates = [k for k, v in COUNTRY_DATA.items() if len(v) > 5 and v[5] in allowed_regions]
+        if not candidates:
+            candidates = list(COUNTRY_DATA.keys())
+            
+        chosen_key = random.choice(candidates)
+
+    country_entry = COUNTRY_DATA[chosen_key]
+    lat, lon, official_name, cca2 = country_entry[0], country_entry[1], country_entry[2], country_entry[3]
+    borders = country_entry[4] if len(country_entry) > 4 else set()
+
+    diff_label = (
+        "🟢 Easy (1 pts)" if chosen_diff == "easy"
+        else ("🟡 Medium (2 pts)" if chosen_diff == "medium"
+        else ("🔴 Hard (3 pts)" if chosen_diff == "hard"
+        else "🟣 Impossible (5 pts)"))
+    )
+
+    reward_pieces = []
+    if role:
+        reward_pieces.append(role.mention)
+    if reward_text:
+        reward_pieces.append(reward_text)
+
+    reward_output = f"\n**Reward:** {' '.join(reward_pieces)}" if reward_pieces else ""
+    if required_role:
+        reward_output += f"\n**Required Role:** {required_role.mention}"
+
+    round_header = f" (Round {current_round}/{total_rounds})" if total_rounds > 1 else ""
+
+    game_embed = discord.Embed(
+        title=f"🌍 Guess The Mystery Country / Territory!{round_header}",
+        description=(
+            f"**Created by:** {creator.mention}\n"
+            f"**Difficulty Selected:** {diff_label}{reward_output}\n\n"
+            "*No guesses yet!*"
+        ),
+        color=discord.Color.teal()
+    )
+    if hasattr(creator, "display_avatar"):
+        game_embed.set_thumbnail(url=creator.display_avatar.url)
+
+    try:
+        await vote_message.edit(embed=game_embed, view=None)
+        game_msg_id = vote_message.id
+    except Exception:
+        game_msg = await target_channel.send(embed=game_embed)
+        game_msg_id = game_msg.id
+
+    active_codes[target_channel.id] = {
+        "code": chosen_key,
+        "accepted_answers": [chosen_key, official_name.lower()],
+        "target_coords": (lat, lon),
+        "target_display": official_name,
+        "target_borders": borders,
+        "difficulty": chosen_diff,
+        "ready": True,
+        "role_id": role.id if role else None,
+        "reward_text": reward_text,
+        "type": "country",
+        "start_time": time.time(),
+        "troll_target": None,
+        "creator_id": creator.id,
+        "required_role_id": required_role.id if required_role else None,
+        "country_embed_id": game_msg_id,
+        "country_guesses": [],
+        "current_round": current_round,
+        "total_rounds": total_rounds,
+        "session_scores": session_scores
+    }
+
+
 # --- ADMIN LOGGING SETUP SLASH COMMAND ---
 @bot.tree.command(name="setadminlogchannel", description="Sets the channel where admin actions will be logged (Bot Admin Only)")
 @app_commands.describe(channel="The channel where admin command logs should be sent")
@@ -1066,6 +1183,7 @@ async def flagquiz_slash(
 @bot.tree.command(name="guessthemysterycountry", description="Starts a mystery country guessing game with difficulty voting!")
 @app_commands.describe(
     country="Optional: Pick a specific mystery country/territory to guess (Leave empty for random)",
+    rounds="Number of rounds to play in this game session (Default: 1)",
     role="Optional role reward",
     reward_text="Optional custom text description for the reward",
     required_role="Optional role required to guess in this game",
@@ -1074,6 +1192,7 @@ async def flagquiz_slash(
 async def guessthemysterycountry_slash(
     interaction: discord.Interaction,
     country: str | None = None,
+    rounds: int = 1,
     role: discord.Role | None = None,
     reward_text: str | None = None,
     required_role: discord.Role | None = None,
@@ -1098,7 +1217,6 @@ async def guessthemysterycountry_slash(
         await interaction.followup.send("❌ Invalid channel destination!", ephemeral=True)
         return
 
-    specific_choice = None
     if country:
         clean_c = normalize_text(country)
         if clean_c not in COUNTRY_DATA:
@@ -1107,99 +1225,24 @@ async def guessthemysterycountry_slash(
                 ephemeral=True
             )
             return
-        specific_choice = clean_c
 
-    # Step 1: Send Initial Voting Embed to Chat
-    vote_view = DifficultyVoteView(creator=interaction.user, timeout=15.0)
-    initial_embed = vote_view.build_updated_embed()
-    vote_message = await target_channel.send(embed=initial_embed, view=vote_view)
-    vote_view.message = vote_message
+    if rounds < 1 or rounds > 20:
+        await interaction.followup.send("❌ Rounds must be between 1 and 20!", ephemeral=True)
+        return
 
-    await interaction.followup.send(f"✅ Difficulty vote started in {target_channel.mention}!", ephemeral=True)
+    await interaction.followup.send(f"✅ Country guessing game started in {target_channel.mention} ({rounds} round(s))!", ephemeral=True)
 
-    # Step 2: Wait 15s without resetting timer on vote clicks
-    await vote_view.wait()
-
-    chosen_diff = vote_view.determine_winner()
-
-    if specific_choice:
-        chosen_key = specific_choice
-    else:
-        # Cumulative regional continents logic
-        if chosen_diff == "easy":
-            allowed_regions = {"americas"}
-        elif chosen_diff == "medium":
-            allowed_regions = {"americas", "europe_asia"}
-        elif chosen_diff == "hard":
-            allowed_regions = {"americas", "europe_asia", "africa_oceania"}
-        else:
-            allowed_regions = {"americas", "europe_asia", "africa_oceania", "territory"}
-
-        candidates = [k for k, v in COUNTRY_DATA.items() if len(v) > 5 and v[5] in allowed_regions]
-        if not candidates:
-            candidates = list(COUNTRY_DATA.keys())
-            
-        chosen_key = random.choice(candidates)
-
-    country_entry = COUNTRY_DATA[chosen_key]
-    lat, lon, official_name, cca2 = country_entry[0], country_entry[1], country_entry[2], country_entry[3]
-    borders = country_entry[4] if len(country_entry) > 4 else set()
-
-    diff_label = (
-        "🟢 Easy" if chosen_diff == "easy"
-        else ("🟡 Medium" if chosen_diff == "medium"
-        else ("🔴 Hard" if chosen_diff == "hard"
-        else "🟣 Impossible"))
+    await start_country_round(
+        target_channel=target_channel,
+        creator=interaction.user,
+        country=country,
+        role=role,
+        reward_text=reward_text,
+        required_role=required_role,
+        current_round=1,
+        total_rounds=rounds,
+        session_scores={}
     )
-
-    # Step 3: Replace vote embed with active game embed
-    reward_pieces = []
-    if role:
-        reward_pieces.append(role.mention)
-    if reward_text:
-        reward_pieces.append(reward_text)
-
-    reward_output = f"\n**Reward:** {' '.join(reward_pieces)}" if reward_pieces else ""
-    if required_role:
-        reward_output += f"\n**Required Role:** {required_role.mention}"
-
-    game_embed = discord.Embed(
-        title="🌍 Guess The Mystery Country / Territory!",
-        description=(
-            f"**Created by:** {interaction.user.mention}\n"
-            f"**Difficulty Selected:** {diff_label}{reward_output}\n\n"
-            "*No guesses yet!*"
-        ),
-        color=discord.Color.teal()
-    )
-    if hasattr(interaction.user, "display_avatar"):
-        game_embed.set_thumbnail(url=interaction.user.display_avatar.url)
-
-    try:
-        await vote_message.edit(embed=game_embed, view=None)
-        game_msg_id = vote_message.id
-    except Exception:
-        game_msg = await target_channel.send(embed=game_embed)
-        game_msg_id = game_msg.id
-
-    active_codes[target_channel.id] = {
-        "code": chosen_key,
-        "accepted_answers": [chosen_key, official_name.lower()],
-        "target_coords": (lat, lon),
-        "target_display": official_name,
-        "target_borders": borders,
-        "difficulty": chosen_diff,
-        "ready": True,
-        "role_id": role.id if role else None,
-        "reward_text": reward_text,
-        "type": "country",
-        "start_time": time.time(),
-        "troll_target": None,
-        "creator_id": interaction.user.id,
-        "required_role_id": required_role.id if required_role else None,
-        "country_embed_id": game_msg_id,
-        "country_guesses": [],
-    }
 
 
 @bot.tree.command(name="wordle", description="Creates a custom Wordle game challenge.")
@@ -2117,10 +2160,10 @@ async def on_message(message: discord.Message):
                             creator_mention = creator_user.mention if creator_user else "Unknown"
 
                             diff_label = (
-                                "🟢 Easy" if difficulty == "easy"
-                                else ("🟡 Medium" if difficulty == "medium"
-                                else ("🔴 Hard" if difficulty == "hard"
-                                else "🟣 Impossible"))
+                                "🟢 Easy (1 pts)" if difficulty == "easy"
+                                else ("🟡 Medium (2 pts)" if difficulty == "medium"
+                                else ("🔴 Hard (3 pts)" if difficulty == "hard"
+                                else "🟣 Impossible (5 pts)"))
                             )
 
                             role_id = code_data.get("role_id")
@@ -2141,9 +2184,12 @@ async def on_message(message: discord.Message):
                                     reward_out += f"\n**Required Role:** {r_req.mention}"
 
                             guesses_formatted = "\n".join(code_data["country_guesses"][-10:])
+                            tot_r = code_data.get("total_rounds", 1)
+                            curr_r = code_data.get("current_round", 1)
+                            round_str = f" (Round {curr_r}/{tot_r})" if tot_r > 1 else ""
 
                             new_embed = discord.Embed(
-                                title="🌍 Guess The Mystery Country / Territory!",
+                                title=f"🌍 Guess The Mystery Country / Territory!{round_str}",
                                 description=(
                                     f"**Created by:** {creator_mention}\n"
                                     f"**Difficulty:** {diff_label}{reward_out}\n\n"
@@ -2164,6 +2210,18 @@ async def on_message(message: discord.Message):
                         role_id = code_data.get("role_id")
                         custom_reward_text = code_data.get("reward_text")
                         target_display = code_data.get("target_display", target_code.capitalize())
+
+                        # Score award calculation
+                        points_map = {"easy": 1, "medium": 2, "hard": 3, "impossible": 5}
+                        pts = points_map.get(difficulty, 1)
+
+                        session_scores = code_data.get("session_scores", {})
+                        session_scores[message.author.id] = session_scores.get(message.author.id, 0) + pts
+
+                        curr_r = code_data.get("current_round", 1)
+                        tot_r = code_data.get("total_rounds", 1)
+
+                        creator_obj = bot.get_user(creator_id) or message.author
 
                         del active_codes[channel_id]
 
@@ -2197,12 +2255,41 @@ async def on_message(message: discord.Message):
                                     pass
 
                         if reward_desc:
-                            embed_desc = f"🎉 {message.author.mention} correctly guessed **{target_display}** for **{reward_desc}** in **{elapsed_seconds}** seconds!"
+                            embed_desc = f"🎉 {message.author.mention} correctly guessed **{target_display}** (+{pts} pts) for **{reward_desc}** in **{elapsed_seconds}** seconds!"
                         else:
-                            embed_desc = f"🎉 {message.author.mention} correctly guessed **{target_display}** in **{elapsed_seconds}** seconds!"
+                            embed_desc = f"🎉 {message.author.mention} correctly guessed **{target_display}** (+{pts} pts) in **{elapsed_seconds}** seconds!"
 
                         success_embed = discord.Embed(description=embed_desc, color=discord.Color.green())
                         await message.channel.send(embed=success_embed)
+
+                        # Continue next round or display total scores
+                        if curr_r < tot_r:
+                            await asyncio.sleep(3)
+                            await start_country_round(
+                                target_channel=message.channel,
+                                creator=creator_obj,
+                                country=None,
+                                role=message.guild.get_role(role_id) if role_id and message.guild else None,
+                                reward_text=custom_reward_text,
+                                required_role=message.guild.get_role(required_role_id) if required_role_id and message.guild else None,
+                                current_round=curr_r + 1,
+                                total_rounds=tot_r,
+                                session_scores=session_scores
+                            )
+                        elif tot_r > 1:
+                            # Print Session Leaderboard Summary
+                            sorted_scores = sorted(session_scores.items(), key=lambda x: x[1], reverse=True)
+                            score_lines = []
+                            for idx, (uid, sc) in enumerate(sorted_scores, 1):
+                                medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"`#{idx}`"))
+                                score_lines.append(f"{medal} <@{uid}> — **{sc}** pts")
+
+                            score_embed = discord.Embed(
+                                title="🏆 Final Game Session Leaderboard!",
+                                description="\n".join(score_lines) if score_lines else "No points awarded.",
+                                color=discord.Color.gold()
+                            )
+                            await message.channel.send(embed=score_embed)
                 return
 
             # --- WORDLE GAME LOGIC ---
