@@ -137,8 +137,24 @@ async def log_admin_action(executor: discord.User | discord.Member, action_title
         print(f"Failed to send admin log: {e}")
 
 
+# --- SIMILAR FLAGS PAIRS DATASET ---
+SIMILAR_FLAG_PAIRS = [
+    (("mali", "Mali", "ML"), ("guinea", "Guinea", "GN")),
+    (("indonesia", "Indonesia", "ID"), ("monaco", "Monaco", "MC")),
+    (("romania", "Romania", "RO"), ("chad", "Chad", "TD")),
+    (("ireland", "Ireland", "IE"), ("cote d'ivoire", "Côte d'Ivoire", "CI")),
+    (("new zealand", "New Zealand", "NZ"), ("australia", "Australia", "AU")),
+    (("colombia", "Colombia", "CO"), ("ecuador", "Ecuador", "EC")),
+    (("venezuela", "Venezuela", "VE"), ("colombia", "Colombia", "CO")),
+    (("luxembourg", "Luxembourg", "LU"), ("netherlands", "Netherlands", "NL")),
+    (("slovenia", "Slovenia", "SI"), ("slovakia", "Slovakia", "SK")),
+    (("norway", "Norway", "NO"), ("iceland", "Iceland", "IS")),
+    (("bahrain", "Bahrain", "BH"), ("qatar", "Qatar", "QA")),
+    (("el salvador", "El Salvador", "SV"), ("honduras", "Honduras", "HN")),
+    (("nicaragua", "Nicaragua", "NI"), ("guatemala", "Guatemala", "GT")),
+]
+
 # --- FULL WORLD COUNTRY & TERRITORY DATASET ---
-# Format: (lat, lon, official_name, iso_code, border_set, region)
 COUNTRY_DATA = {
     # --- AMERICAS ---
     "antigua and barbuda": (17.0608, -61.7964, "Antigua and Barbuda", "AG", set(), "americas"),
@@ -658,6 +674,55 @@ class DifficultyVoteView(discord.ui.View):
         await interaction.response.defer()
 
 
+# --- SIMILAR FLAGS GAME VIEW ---
+class SimilarFlagsView(discord.ui.View):
+    def __init__(self, target_country_key: str, correct_flag: str, wrong_flag: str, timeout: float = 30.0):
+        super().__init__(timeout=timeout)
+        self.target_country_key = target_country_key
+        self.correct_flag = correct_flag
+        self.wrong_flag = wrong_flag
+        self.answered = False
+
+        # Randomize left/right button placement
+        self.options = [
+            {"flag": correct_flag, "is_correct": True},
+            {"flag": wrong_flag, "is_correct": False}
+        ]
+        random.shuffle(self.options)
+
+        self.btn_left.label = self.options[0]["flag"]
+        self.btn_right.label = self.options[1]["flag"]
+
+    @discord.ui.button(label="🚩", style=discord.ButtonStyle.primary, custom_id="flag_left")
+    async def btn_left(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_answer(interaction, 0)
+
+    @discord.ui.button(label="🚩", style=discord.ButtonStyle.primary, custom_id="flag_right")
+    async def btn_right(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.process_answer(interaction, 1)
+
+    async def process_answer(self, interaction: discord.Interaction, option_idx: int):
+        if self.answered:
+            await interaction.response.send_message("⚠️ This game has already ended!", ephemeral=True)
+            return
+
+        choice = self.options[option_idx]
+        if choice["is_correct"]:
+            self.answered = True
+            self.stop()
+            for child in self.children:
+                child.disabled = True
+
+            embed = discord.Embed(
+                title="🎉 Correct Answer!",
+                description=f"Well done {interaction.user.mention}! {choice['flag']} is indeed the correct flag for **{self.target_country_key.title()}**!",
+                color=discord.Color.green()
+            )
+            await interaction.response.edit_message(embed=embed, view=self)
+        else:
+            await interaction.response.send_message("❌ Wrong flag! Try again!", ephemeral=True)
+
+
 async def process_code_creation(
     target_channel: discord.TextChannel | discord.Thread | discord.DMChannel,
     clean_code: str,
@@ -923,6 +988,79 @@ async def setadminlogchannel_slash(interaction: discord.Interaction, channel: di
 
 
 # --- SLASH COMMANDS ---
+@bot.tree.command(name="flagquiz", description="Starts a Similar Flags guessing challenge mode!")
+@app_commands.describe(
+    seconds="Countdown seconds before revealing which country to guess (Default: 5)",
+    channel="Target channel"
+)
+async def flagquiz_slash(
+    interaction: discord.Interaction,
+    seconds: int = 5,
+    channel: discord.TextChannel | None = None
+):
+    await interaction.response.defer(ephemeral=True)
+
+    if interaction.guild and interaction.guild.id in blacklisted_servers:
+        await interaction.followup.send("🚫 This server is blacklisted from using bot commands!", ephemeral=True)
+        return
+
+    if interaction.user.id in blacklisted_users:
+        await interaction.followup.send("🚫 You are blacklisted from using bot commands!", ephemeral=True)
+        return
+
+    target_channel = channel or interaction.channel
+    if not isinstance(target_channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+        await interaction.followup.send("❌ Invalid channel destination!", ephemeral=True)
+        return
+
+    pair = random.choice(SIMILAR_FLAG_PAIRS)
+    c1, c2 = pair[0], pair[1]
+
+    # Decide which one is target
+    target_tuple = random.choice([c1, c2])
+    wrong_tuple = c2 if target_tuple == c1 else c1
+
+    flag1_emoji = get_flag_emoji(c1[2])
+    flag2_emoji = get_flag_emoji(c2[2])
+
+    embed = discord.Embed(
+        title="🏁 Similar Flags Challenge!",
+        description=(
+            f"**Look closely at these two flags:** {flag1_emoji}  {flag2_emoji}\n\n"
+            f"⏱️ Question will reveal in **{seconds}** seconds..."
+        ),
+        color=discord.Color.purple()
+    )
+    if hasattr(interaction.user, "display_avatar"):
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+
+    quiz_msg = await target_channel.send(embed=embed)
+    await interaction.followup.send(f"✅ Similar Flags game started in {target_channel.mention}!", ephemeral=True)
+
+    await asyncio.sleep(seconds)
+
+    target_flag_emoji = get_flag_emoji(target_tuple[2])
+    wrong_flag_emoji = get_flag_emoji(wrong_tuple[2])
+
+    view = SimilarFlagsView(
+        target_country_key=target_tuple[1],
+        correct_flag=target_flag_emoji,
+        wrong_flag=wrong_flag_emoji,
+        timeout=30.0
+    )
+
+    embed.description = (
+        f"**Which flag is {target_tuple[1]}?**\n\n"
+        f"Flags presented: {flag1_emoji} vs {flag2_emoji}\n"
+        "Click the correct button below!"
+    )
+
+    try:
+        await quiz_msg.edit(embed=embed, view=view)
+    except Exception:
+        pass
+
+
 @bot.tree.command(name="guessthemysterycountry", description="Starts a mystery country guessing game with difficulty voting!")
 @app_commands.describe(
     country="Optional: Pick a specific mystery country/territory to guess (Leave empty for random)",
@@ -1714,6 +1852,7 @@ async def cmds_command(ctx):
             "`/createriddle` - Creates a riddle challenge embed in chat.\n"
             "`/wordle` - Creates a custom interactive Wordle game in chat.\n"
             "`/guessthemysterycountry` - Starts a mystery country/territory distance game.\n"
+            "`/flagquiz` - Starts a Similar Flags guessing game!\n"
             "`/leaderboard` - Displays fast solve times and top code solvers.\n"
             "`/setcoderole` - Sets roles allowed to manage codes for this server."
         ),
