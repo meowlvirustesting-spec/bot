@@ -678,11 +678,27 @@ class DifficultyVoteView(discord.ui.View):
 
 # --- SIMILAR FLAGS GAME VIEW ---
 class SimilarFlagsView(discord.ui.View):
-    def __init__(self, target_country_key: str, correct_flag: str, wrong_flag: str, timeout: float = 30.0):
+    def __init__(
+        self, 
+        target_country_key: str, 
+        correct_flag: str, 
+        wrong_flag: str, 
+        current_round: int = 1,
+        total_rounds: int = 1,
+        session_scores: dict | None = None,
+        creator: discord.User | discord.Member | None = None,
+        seconds: int = 5,
+        timeout: float = 30.0
+    ):
         super().__init__(timeout=timeout)
         self.target_country_key = target_country_key
         self.correct_flag = correct_flag
         self.wrong_flag = wrong_flag
+        self.current_round = current_round
+        self.total_rounds = total_rounds
+        self.session_scores = session_scores if session_scores is not None else {}
+        self.creator = creator
+        self.seconds = seconds
         self.answered = False
 
         # Randomize left/right button placement
@@ -705,7 +721,7 @@ class SimilarFlagsView(discord.ui.View):
 
     async def process_answer(self, interaction: discord.Interaction, option_idx: int):
         if self.answered:
-            await interaction.response.send_message("⚠️ This game has already ended!", ephemeral=True)
+            await interaction.response.send_message("⚠️ This round has already ended!", ephemeral=True)
             return
 
         choice = self.options[option_idx]
@@ -715,14 +731,110 @@ class SimilarFlagsView(discord.ui.View):
             for child in self.children:
                 child.disabled = True
 
+            # Award 2 points for correct flag guess
+            pts = 2
+            uid = interaction.user.id
+            self.session_scores[uid] = self.session_scores.get(uid, 0) + pts
+
             embed = discord.Embed(
                 title="🎉 Correct Answer!",
-                description=f"Well done {interaction.user.mention}! {choice['flag']} is indeed the correct flag for **{self.target_country_key.title()}**!",
+                description=f"Well done {interaction.user.mention}! {choice['flag']} is indeed the correct flag for **{self.target_country_key.title()}**! (+2 pts)",
                 color=discord.Color.green()
             )
             await interaction.response.edit_message(embed=embed, view=self)
+
+            # Proceed to next round or output score summary
+            if self.current_round < self.total_rounds:
+                await asyncio.sleep(3)
+                if isinstance(interaction.channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+                    await start_flagquiz_round(
+                        target_channel=interaction.channel,
+                        seconds=self.seconds,
+                        current_round=self.current_round + 1,
+                        total_rounds=self.total_rounds,
+                        session_scores=self.session_scores,
+                        creator=self.creator or interaction.user
+                    )
+            elif self.total_rounds > 1:
+                sorted_scores = sorted(self.session_scores.items(), key=lambda x: x[1], reverse=True)
+                score_lines = []
+                for idx, (user_id, sc) in enumerate(sorted_scores, 1):
+                    medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"`#{idx}`"))
+                    score_lines.append(f"{medal} <@{user_id}> — **{sc}** pts")
+
+                score_embed = discord.Embed(
+                    title="🏆 Final Flag Quiz Session Leaderboard!",
+                    description="\n".join(score_lines) if score_lines else "No points awarded.",
+                    color=discord.Color.gold()
+                )
+                if isinstance(interaction.channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+                    await interaction.channel.send(embed=score_embed)
         else:
             await interaction.response.send_message("❌ Wrong flag! Try again!", ephemeral=True)
+
+
+async def start_flagquiz_round(
+    target_channel: discord.TextChannel | discord.Thread | discord.DMChannel,
+    seconds: int = 5,
+    current_round: int = 1,
+    total_rounds: int = 1,
+    session_scores: dict | None = None,
+    creator: discord.User | discord.Member | None = None
+):
+    if session_scores is None:
+        session_scores = {}
+
+    pair = random.choice(SIMILAR_FLAG_PAIRS)
+    c1, c2 = pair[0], pair[1]
+
+    target_tuple = random.choice([c1, c2])
+    wrong_tuple = c2 if target_tuple == c1 else c1
+
+    flag1_emoji = get_flag_emoji(c1[2])
+    flag2_emoji = get_flag_emoji(c2[2])
+
+    round_header = f" (Round {current_round}/{total_rounds})" if total_rounds > 1 else ""
+
+    embed = discord.Embed(
+        title=f"🏁 Similar Flags Challenge!{round_header}",
+        description=(
+            f"**Look closely at these two flags:** {flag1_emoji}  {flag2_emoji}\n\n"
+            f"⏱️ Question will reveal in **{seconds}** seconds..."
+        ),
+        color=discord.Color.purple()
+    )
+    if creator and hasattr(creator, "display_avatar"):
+        embed.set_thumbnail(url=creator.display_avatar.url)
+
+    quiz_msg = await target_channel.send(embed=embed)
+
+    await asyncio.sleep(seconds)
+
+    target_flag_emoji = get_flag_emoji(target_tuple[2])
+    wrong_flag_emoji = get_flag_emoji(wrong_tuple[2])
+
+    view = SimilarFlagsView(
+        target_country_key=target_tuple[1],
+        correct_flag=target_flag_emoji,
+        wrong_flag=wrong_flag_emoji,
+        current_round=current_round,
+        total_rounds=total_rounds,
+        session_scores=session_scores,
+        creator=creator,
+        seconds=seconds,
+        timeout=30.0
+    )
+
+    embed.description = (
+        f"**Which flag is {target_tuple[1]}?**\n\n"
+        f"Flags presented: {flag1_emoji} vs {flag2_emoji}\n"
+        "Click the correct button below!"
+    )
+
+    try:
+        await quiz_msg.edit(embed=embed, view=view)
+    except Exception:
+        pass
 
 
 async def process_code_creation(
@@ -1109,11 +1221,13 @@ async def setadminlogchannel_slash(interaction: discord.Interaction, channel: di
 # --- SLASH COMMANDS ---
 @bot.tree.command(name="flagquiz", description="Starts a Similar Flags guessing challenge mode!")
 @app_commands.describe(
+    rounds="Number of rounds to play in this game session (Default: 1)",
     seconds="Countdown seconds before revealing which country to guess (Default: 5)",
     channel="Target channel"
 )
 async def flagquiz_slash(
     interaction: discord.Interaction,
+    rounds: int = 1,
     seconds: int = 5,
     channel: discord.TextChannel | None = None
 ):
@@ -1132,52 +1246,20 @@ async def flagquiz_slash(
         await interaction.followup.send("❌ Invalid channel destination!", ephemeral=True)
         return
 
-    pair = random.choice(SIMILAR_FLAG_PAIRS)
-    c1, c2 = pair[0], pair[1]
+    if rounds < 1 or rounds > 20:
+        await interaction.followup.send("❌ Rounds must be between 1 and 20!", ephemeral=True)
+        return
 
-    # Decide which one is target
-    target_tuple = random.choice([c1, c2])
-    wrong_tuple = c2 if target_tuple == c1 else c1
+    await interaction.followup.send(f"✅ Similar Flags game started in {target_channel.mention} ({rounds} round(s))!", ephemeral=True)
 
-    flag1_emoji = get_flag_emoji(c1[2])
-    flag2_emoji = get_flag_emoji(c2[2])
-
-    embed = discord.Embed(
-        title="🏁 Similar Flags Challenge!",
-        description=(
-            f"**Look closely at these two flags:** {flag1_emoji}  {flag2_emoji}\n\n"
-            f"⏱️ Question will reveal in **{seconds}** seconds..."
-        ),
-        color=discord.Color.purple()
+    await start_flagquiz_round(
+        target_channel=target_channel,
+        seconds=seconds,
+        current_round=1,
+        total_rounds=rounds,
+        session_scores={},
+        creator=interaction.user
     )
-    if hasattr(interaction.user, "display_avatar"):
-        embed.set_thumbnail(url=interaction.user.display_avatar.url)
-
-    quiz_msg = await target_channel.send(embed=embed)
-    await interaction.followup.send(f"✅ Similar Flags game started in {target_channel.mention}!", ephemeral=True)
-
-    await asyncio.sleep(seconds)
-
-    target_flag_emoji = get_flag_emoji(target_tuple[2])
-    wrong_flag_emoji = get_flag_emoji(wrong_tuple[2])
-
-    view = SimilarFlagsView(
-        target_country_key=target_tuple[1],
-        correct_flag=target_flag_emoji,
-        wrong_flag=wrong_flag_emoji,
-        timeout=30.0
-    )
-
-    embed.description = (
-        f"**Which flag is {target_tuple[1]}?**\n\n"
-        f"Flags presented: {flag1_emoji} vs {flag2_emoji}\n"
-        "Click the correct button below!"
-    )
-
-    try:
-        await quiz_msg.edit(embed=embed, view=view)
-    except Exception:
-        pass
 
 
 @bot.tree.command(name="guessthemysterycountry", description="Starts a mystery country guessing game with difficulty voting!")
