@@ -150,8 +150,10 @@ SIMILAR_FLAG_PAIRS = [
     (("slovenia", "Slovenia", "SI"), ("slovakia", "Slovakia", "SK")),
     (("norway", "Norway", "NO"), ("iceland", "Iceland", "IS")),
     (("bahrain", "Bahrain", "BH"), ("qatar", "Qatar", "QA")),
-    (("el salvador", "El Salvador", "SV"), ("honduras", "Honduras", "HN")),
-    (("nicaragua", "Nicaragua", "NI"), ("guatemala", "Guatemala", "GT")),
+    (("el salvador", "El Salvador", "SV"), ("nicaragua", "Nicaragua", "NI")),
+    (("guatemala", "Guatemala", "GT"), ("argentina", "Argentina", "AR")),
+    (("jordan", "Jordan", "JO"), ("palestine", "Palestine", "PS")),
+    (("sudan", "Sudan", "SD"), ("palestine", "Palestine", "PS")),
 ]
 
 # --- FULL WORLD COUNTRY & TERRITORY DATASET ---
