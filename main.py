@@ -154,6 +154,8 @@ SIMILAR_FLAG_PAIRS = [
     (("guatemala", "Guatemala", "GT"), ("argentina", "Argentina", "AR")),
     (("jordan", "Jordan", "JO"), ("palestine", "Palestine", "PS")),
     (("sudan", "Sudan", "SD"), ("palestine", "Palestine", "PS")),
+    (("madagascar", "Madagascar", "MG"), ("benin", "Benin", "BJ")),
+    (("trinidad and tobago", "Trinidad and Tobago", "TT"), ("tanzania", "Tanzania", "TZ")),
 ]
 
 # --- FULL WORLD COUNTRY & TERRITORY DATASET ---
@@ -724,53 +726,60 @@ class SimilarFlagsView(discord.ui.View):
             await interaction.response.send_message("⚠️ This round has already ended!", ephemeral=True)
             return
 
-        choice = self.options[option_idx]
-        if choice["is_correct"]:
-            self.answered = True
-            self.stop()
-            for child in self.children:
-                child.disabled = True
+        self.answered = True
+        self.stop()
+        for child in self.children:
+            child.disabled = True
 
+        choice = self.options[option_idx]
+        round_header = f" (Round {self.current_round}/{self.total_rounds})" if self.total_rounds > 1 else ""
+
+        if choice["is_correct"]:
             # Award 2 points for correct flag guess
             pts = 2
             uid = interaction.user.id
             self.session_scores[uid] = self.session_scores.get(uid, 0) + pts
 
             embed = discord.Embed(
-                title="🎉 Correct Answer!",
+                title=f"🎉 Correct Answer!{round_header}",
                 description=f"Well done {interaction.user.mention}! {choice['flag']} is indeed the correct flag for **{self.target_country_key.title()}**! (+2 pts)",
                 color=discord.Color.green()
             )
-            await interaction.response.edit_message(embed=embed, view=self)
-
-            # Proceed to next round or output score summary
-            if self.current_round < self.total_rounds:
-                await asyncio.sleep(3)
-                if isinstance(interaction.channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
-                    await start_flagquiz_round(
-                        target_channel=interaction.channel,
-                        seconds=self.seconds,
-                        current_round=self.current_round + 1,
-                        total_rounds=self.total_rounds,
-                        session_scores=self.session_scores,
-                        creator=self.creator or interaction.user
-                    )
-            elif self.total_rounds > 1:
-                sorted_scores = sorted(self.session_scores.items(), key=lambda x: x[1], reverse=True)
-                score_lines = []
-                for idx, (user_id, sc) in enumerate(sorted_scores, 1):
-                    medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"`#{idx}`"))
-                    score_lines.append(f"{medal} <@{user_id}> — **{sc}** pts")
-
-                score_embed = discord.Embed(
-                    title="🏆 Final Flag Quiz Session Leaderboard!",
-                    description="\n".join(score_lines) if score_lines else "No points awarded.",
-                    color=discord.Color.gold()
-                )
-                if isinstance(interaction.channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
-                    await interaction.channel.send(embed=score_embed)
         else:
-            await interaction.response.send_message("❌ Wrong flag! Try again!", ephemeral=True)
+            embed = discord.Embed(
+                title=f"❌ Incorrect Answer!{round_header}",
+                description=f"Sorry {interaction.user.mention}, {choice['flag']} is incorrect! The correct flag for **{self.target_country_key.title()}** was {self.correct_flag}.",
+                color=discord.Color.red()
+            )
+
+        await interaction.response.edit_message(embed=embed, view=self)
+
+        # Proceed to next round or output score summary
+        if self.current_round < self.total_rounds:
+            await asyncio.sleep(3)
+            if isinstance(interaction.channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+                await start_flagquiz_round(
+                    target_channel=interaction.channel,
+                    seconds=self.seconds,
+                    current_round=self.current_round + 1,
+                    total_rounds=self.total_rounds,
+                    session_scores=self.session_scores,
+                    creator=self.creator or interaction.user
+                )
+        elif self.total_rounds > 1:
+            sorted_scores = sorted(self.session_scores.items(), key=lambda x: x[1], reverse=True)
+            score_lines = []
+            for idx, (user_id, sc) in enumerate(sorted_scores, 1):
+                medal = "🥇" if idx == 1 else ("🥈" if idx == 2 else ("🥉" if idx == 3 else f"`#{idx}`"))
+                score_lines.append(f"{medal} <@{user_id}> — **{sc}** pts")
+
+            score_embed = discord.Embed(
+                title="🏆 Final Flag Quiz Session Leaderboard!",
+                description="\n".join(score_lines) if score_lines else "No points awarded.",
+                color=discord.Color.gold()
+            )
+            if isinstance(interaction.channel, (discord.TextChannel, discord.Thread, discord.DMChannel)):
+                await interaction.channel.send(embed=score_embed)
 
 
 async def start_flagquiz_round(
