@@ -140,7 +140,7 @@ async def log_admin_action(executor: discord.User | discord.Member, action_title
 # --- FULL WORLD COUNTRY & TERRITORY DATASET ---
 # Format: (lat, lon, official_name, iso_code, border_set, region)
 COUNTRY_DATA = {
-    # --- AMERICAS (EASY MODE) ---
+    # --- AMERICAS ---
     "antigua and barbuda": (17.0608, -61.7964, "Antigua and Barbuda", "AG", set(), "americas"),
     "argentina": (-38.4161, -63.6167, "Argentina", "AR", {"bolivia", "brazil", "chile", "paraguay", "uruguay"}, "americas"),
     "bahamas": (25.0343, -77.3963, "Bahamas", "BS", set(), "americas"),
@@ -177,7 +177,7 @@ COUNTRY_DATA = {
     "uruguay": (-32.5228, -55.7658, "Uruguay", "UY", {"argentina", "brazil"}, "americas"),
     "venezuela": (6.4238, -66.5897, "Venezuela", "VE", {"brazil", "colombia", "guyana"}, "americas"),
 
-    # --- EUROPE & ASIA (MEDIUM MODE) ---
+    # --- EUROPE & ASIA ---
     "albania": (41.1533, 20.1683, "Albania", "AL", {"greece", "kosovo", "montenegro", "north macedonia"}, "europe_asia"),
     "andorra": (42.5063, 1.5218, "Andorra", "AD", {"france", "spain"}, "europe_asia"),
     "armenia": (40.0691, 45.0382, "Armenia", "AM", {"azerbaijan", "georgia", "iran", "turkey"}, "europe_asia"),
@@ -272,7 +272,7 @@ COUNTRY_DATA = {
     "vietnam": (14.0583, 108.2772, "Vietnam", "VN", {"cambodia", "china", "laos"}, "europe_asia"),
     "yemen": (15.5527, 48.5164, "Yemen", "YE", {"oman", "saudi arabia"}, "europe_asia"),
 
-    # --- AFRICA & OCEANIA (HARD MODE) ---
+    # --- AFRICA & OCEANIA ---
     "afghanistan": (33.9391, 67.7100, "Afghanistan", "AF", {"china", "iran", "pakistan", "tajikistan", "turkmenistan", "uzbekistan"}, "africa_oceania"),
     "algeria": (28.0339, 1.6596, "Algeria", "DZ", {"libya", "mali", "mauritania", "morocco", "niger", "tunisia", "western sahara"}, "africa_oceania"),
     "angola": (-11.2027, 17.8739, "Angola", "AO", {"congo", "democratic republic of the congo", "namibia", "zambia"}, "africa_oceania"),
@@ -342,7 +342,7 @@ COUNTRY_DATA = {
     "zambia": (-13.1339, 27.8493, "Zambia", "ZM", {"angola", "botswana", "democratic republic of the congo", "malawi", "mozambique", "namibia", "tanzania", "zimbabwe"}, "africa_oceania"),
     "zimbabwe": (-19.0154, 29.1549, "Zimbabwe", "ZW", {"botswana", "mozambique", "south africa", "zambia"}, "africa_oceania"),
 
-    # --- TERRITORIES & DEPENDENCIES (IMPOSSIBLE MODE) ---
+    # --- TERRITORIES & DEPENDENCIES ---
     "american samoa": (-14.2710, -170.1322, "American Samoa", "AS", set(), "territory"),
     "anguilla": (18.2206, -63.0686, "Anguilla", "AI", set(), "territory"),
     "aruba": (12.5211, -69.9683, "Aruba", "AW", set(), "territory"),
@@ -561,12 +561,40 @@ def calculate_wordle_feedback(guess: str, secret: str) -> str:
 
 # --- DIFFICULTY VOTING VIEW ---
 class DifficultyVoteView(discord.ui.View):
-    def __init__(self, creator_id: int, timeout: float = 15.0):
+    def __init__(self, creator: discord.User | discord.Member, message: discord.Message | None = None, timeout: float = 15.0):
         super().__init__(timeout=timeout)
-        self.creator_id = creator_id
+        self.creator = creator
+        self.message = message
         self.votes = {"easy": set(), "medium": set(), "hard": set(), "impossible": set()}
         self.selected_difficulty = "easy"
-        self.finished = False
+
+    def format_vote_mentions(self, key: str) -> str:
+        uids = self.votes[key]
+        if not uids:
+            return "*None*"
+        return ", ".join([f"<@{uid}>" for uid in uids])
+
+    def build_updated_embed(self) -> discord.Embed:
+        embed = discord.Embed(
+            title="🗳️ Vote for Difficulty Mode!",
+            description=(
+                f"**Game host:** {self.creator.mention}\n\n"
+                "Click a button below to vote for the game difficulty:\n"
+                f"• 🟢 **Easy:** Americas ({len(self.votes['easy'])})\n"
+                f"  ↳ Votes: {self.format_vote_mentions('easy')}\n"
+                f"• 🟡 **Medium:** Americas, Europe & Asia ({len(self.votes['medium'])})\n"
+                f"  ↳ Votes: {self.format_vote_mentions('medium')}\n"
+                f"• 🔴 **Hard:** Americas, Europe & Asia, Africa & Oceania ({len(self.votes['hard'])})\n"
+                f"  ↳ Votes: {self.format_vote_mentions('hard')}\n"
+                f"• 🟣 **Impossible:** All Countries + Territories ({len(self.votes['impossible'])})\n"
+                f"  ↳ Votes: {self.format_vote_mentions('impossible')}\n\n"
+                "⏱️ *Voting ends in 15 seconds!*"
+            ),
+            color=discord.Color.gold()
+        )
+        if hasattr(self.creator, "display_avatar"):
+            embed.set_thumbnail(url=self.creator.display_avatar.url)
+        return embed
 
     def update_button_labels(self):
         for child in self.children:
@@ -596,48 +624,36 @@ class DifficultyVoteView(discord.ui.View):
                 return diff
         return "easy"
 
-    @discord.ui.button(label="Easy (0)", style=discord.ButtonStyle.success, custom_id="vote_easy")
-    async def easy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def handle_vote(self, interaction: discord.Interaction, difficulty_key: str):
         uid = interaction.user.id
         for k in self.votes:
             self.votes[k].discard(uid)
-        self.votes["easy"].add(uid)
+        self.votes[difficulty_key].add(uid)
         self.update_button_labels()
-        await interaction.response.edit_message(view=self)
+        new_embed = self.build_updated_embed()
+        await interaction.response.edit_message(embed=new_embed, view=self)
+
+    @discord.ui.button(label="Easy (0)", style=discord.ButtonStyle.success, custom_id="vote_easy")
+    async def easy_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await self.handle_vote(interaction, "easy")
 
     @discord.ui.button(label="Medium (0)", style=discord.ButtonStyle.primary, custom_id="vote_medium")
     async def medium_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        uid = interaction.user.id
-        for k in self.votes:
-            self.votes[k].discard(uid)
-        self.votes["medium"].add(uid)
-        self.update_button_labels()
-        await interaction.response.edit_message(view=self)
+        await self.handle_vote(interaction, "medium")
 
     @discord.ui.button(label="Hard (0)", style=discord.ButtonStyle.danger, custom_id="vote_hard")
     async def hard_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        uid = interaction.user.id
-        for k in self.votes:
-            self.votes[k].discard(uid)
-        self.votes["hard"].add(uid)
-        self.update_button_labels()
-        await interaction.response.edit_message(view=self)
+        await self.handle_vote(interaction, "hard")
 
     @discord.ui.button(label="Impossible (0)", style=discord.ButtonStyle.secondary, custom_id="vote_impossible")
     async def impossible_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        uid = interaction.user.id
-        for k in self.votes:
-            self.votes[k].discard(uid)
-        self.votes["impossible"].add(uid)
-        self.update_button_labels()
-        await interaction.response.edit_message(view=self)
+        await self.handle_vote(interaction, "impossible")
 
     @discord.ui.button(label="Start Game Now", style=discord.ButtonStyle.secondary, custom_id="start_now", row=1)
     async def start_now_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.creator_id and interaction.user.id not in ADMIN_USER_IDS:
+        if interaction.user.id != self.creator.id and interaction.user.id not in ADMIN_USER_IDS:
             await interaction.response.send_message("❌ Only the game creator can force start the game!", ephemeral=True)
             return
-        self.finished = True
         self.stop()
         await interaction.response.defer()
 
@@ -953,29 +969,15 @@ async def guessthemysterycountry_slash(
             return
         specific_choice = clean_c
 
-    # Step 1: Send Voting Embed to Chat
-    vote_embed = discord.Embed(
-        title="🗳️ Vote for Difficulty Mode!",
-        description=(
-            f"**Game host:** {interaction.user.mention}\n\n"
-            "Click a button below to vote for the game difficulty:\n"
-            "• 🟢 **Easy:** Americas only (Shows name, distance & direction)\n"
-            "• 🟡 **Medium:** Europe & Asia only (Shows flag, distance & direction)\n"
-            "• 🔴 **Hard:** Africa & Oceania only (Shows flag & distance only)\n"
-            "• 🟣 **Impossible:** Territories only (Shows flag & distance only)\n\n"
-            "⏱️ *Voting ends in 15 seconds!*"
-        ),
-        color=discord.Color.gold()
-    )
-    if hasattr(interaction.user, "display_avatar"):
-        vote_embed.set_thumbnail(url=interaction.user.display_avatar.url)
-
-    vote_view = DifficultyVoteView(creator_id=interaction.user.id, timeout=15.0)
-    vote_message = await target_channel.send(embed=vote_embed, view=vote_view)
+    # Step 1: Send Initial Voting Embed to Chat
+    vote_view = DifficultyVoteView(creator=interaction.user, timeout=15.0)
+    initial_embed = vote_view.build_updated_embed()
+    vote_message = await target_channel.send(embed=initial_embed, view=vote_view)
+    vote_view.message = vote_message
 
     await interaction.followup.send(f"✅ Difficulty vote started in {target_channel.mention}!", ephemeral=True)
 
-    # Step 2: Wait for voting timeout or manual start
+    # Step 2: Wait 15s without resetting timer on vote clicks
     await vote_view.wait()
 
     chosen_diff = vote_view.determine_winner()
@@ -983,16 +985,17 @@ async def guessthemysterycountry_slash(
     if specific_choice:
         chosen_key = specific_choice
     else:
-        # Pick random country based on region matching difficulty
+        # Cumulative regional continents logic
         if chosen_diff == "easy":
-            candidates = [k for k, v in COUNTRY_DATA.items() if len(v) > 5 and v[5] == "americas"]
+            allowed_regions = {"americas"}
         elif chosen_diff == "medium":
-            candidates = [k for k, v in COUNTRY_DATA.items() if len(v) > 5 and v[5] == "europe_asia"]
+            allowed_regions = {"americas", "europe_asia"}
         elif chosen_diff == "hard":
-            candidates = [k for k, v in COUNTRY_DATA.items() if len(v) > 5 and v[5] == "africa_oceania"]
+            allowed_regions = {"americas", "europe_asia", "africa_oceania"}
         else:
-            candidates = [k for k, v in COUNTRY_DATA.items() if len(v) > 5 and v[5] == "territory"]
+            allowed_regions = {"americas", "europe_asia", "africa_oceania", "territory"}
 
+        candidates = [k for k, v in COUNTRY_DATA.items() if len(v) > 5 and v[5] in allowed_regions]
         if not candidates:
             candidates = list(COUNTRY_DATA.keys())
             
